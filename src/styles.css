@@ -1,0 +1,6 @@
+@import "../node_modules/@syncfusion/ej2-material-theme/styles/material.css";
+body {
+  height: 100vh;
+  box-sizing: border-box;
+  margin: 0;
+}
