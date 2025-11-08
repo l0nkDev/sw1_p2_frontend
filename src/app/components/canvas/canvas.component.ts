@@ -373,6 +373,8 @@ export class CanvasComponent implements OnInit {
         },
         classifier: 'Class',
       },
+      offsetX: newClass.OffsetX,
+      offsetY: newClass.OffsetY,
     };
     this.diagram.add(newClassObj);
   }
@@ -407,6 +409,8 @@ export class CanvasComponent implements OnInit {
         },
       },
     };
-    this.diagram.add(newConnectorObj as NodeModel);
+    console.log(newConnectorObj);
+    this.diagram.add(newConnectorObj);
+    console.log(this.diagram.connectors);
   }
 }

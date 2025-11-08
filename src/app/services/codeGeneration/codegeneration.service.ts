@@ -64,6 +64,8 @@ export class CodeGenerationService {
           Id: classInstance.id!,
           Title: classHeader.annotations![0].content!,
           Properties: [],
+          OffsetX: classInstance.offsetX!,
+          OffsetY: classInstance.offsetY!,
         };
         node.children.forEach((childID) => {
           if (

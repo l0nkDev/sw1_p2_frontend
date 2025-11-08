@@ -1,7 +1,5 @@
-import {HttpClient, HttpHeaders} from '@angular/common/http';
-import {Component, inject, Input, OnInit, ViewChild} from '@angular/core';
-import {ConnectorObject, DiagramObject}
-  from '../../interfaces/serializedDiagram.interface';
+import {HttpClient} from '@angular/common/http';
+import {Component, inject, Input, OnInit} from '@angular/core';
 import {CanvasComponent} from '../canvas/canvas.component';
 import {FormsModule} from '@angular/forms';
 import {CodeGenerationService}
@@ -9,252 +7,197 @@ import {CodeGenerationService}
 import {VoiceRecognitionService}
   from '../../services/voice-recognition/voice-recognition.service';
 import {saveAs} from 'file-saver';
+import {GoogleGenAI} from '@google/genai';
+import {z} from 'zod';
+import {environment} from '../../../environments/environment.development';
+import {ConnectorObject, Property}
+  from '../../interfaces/serializedDiagram.interface';
+import {DataType} from '../../interfaces/classproperty.interface';
+import {NodeModel} from '@syncfusion/ej2-angular-diagrams';
 
 @Component({
   selector: 'app-navbar',
   templateUrl: 'navbar.component.html',
   imports: [FormsModule],
 })
+
 export class NavbarComponent implements OnInit {
   public voiceRecognitionService = inject(VoiceRecognitionService);
-  @ViewChild('PromptInput') private promptInput!: HTMLInputElement;
   @Input() canvas: CanvasComponent | null = null;
   readonly http = inject(HttpClient);
   processing = false;
   prompt = '';
-  selectedValue = 'class';
-  classDefinitions =
+  ai = new GoogleGenAI({apiKey: environment.GOOGLE_API_KEY});
 
-    `export interface DiagramObject {
-    Classes: ClassObject[];
-    Connectors: ConnectorObject[];
-  }
+  propertySchema = z.object({
+    Name: z.string().describe('Nombre de la propiedad.'),
+    Type: z.enum(['Integer', 'Long', 'Short', 'Float', 'Double',
+      'String', 'Boolean', 'Character', 'Byte', 'LocalDate', 'LocalDateTime'])
+        .describe('Tipo de dato de la propiedad.'),
+  });
 
-  export interface ClassObject {
-    Id: string;
-    Title: string;
-    Properties: Property[];
-  }
+  classSchema = z.object({
+    Id: z.string().describe('Identificador de la clase, empieza con "class_" ' +
+      'mas 15 caracteres alfabeticos aleatorios mayusculas y minusculas.'),
+    Title: z.string().describe('Nombre de la clase.'),
+    Properties:
+      z.string().describe('Lista de propiedades de la clase formateada ' +
+        'en un string. Cada propiedad tiene un titulo de una palabra, ' +
+        'un tipo cuyos posibles valores son: "Integer", "Long", "Short", ' +
+        '"Float", "Double", "String", "Boolean", "Character", "Byte", ' +
+        '"LocalDate" y "LocalDateTime". Por lo tanto cada propiedad consiste ' +
+        'de dos palabras, titulo y tipo, y las propiedades estan separadas ' +
+        'en la lista string por comas. El ID no es parte de las propiedades.'),
+    OffsetX: z.number().describe('Posicion X en el diagrama.'),
+    OffsetY: z.number().describe('Posicion Y en el diagrama.'),
+  });
 
-  export interface Property {
-    Name: string;
-    Type: DataType;
-  }
-  export enum DataType {
-    integer = "Integer",
-    long = "Long",
-    short = "Short",
-    float = "Float",
-    double = "Double",
-    string = "String",
-    boolean = "Boolean",
-    character = "Character",
-    byte = "Byte"
-  }
+  connectorReferenceSchema = z.object({
+    SourceClassId: z.string()
+        .describe('The ID of the source class (e.g., "class_abc123...").'),
+    TargetClassId: z.string()
+        .describe('The ID of the target class (e.g., "class_xyz456...").'),
+    SourceMultiplicity: z.enum(['0...1', '1...1', '*...*', '0...*', '1...*']),
+    TargetMultiplicity: z.enum(['0...1', '1...1', '*...*', '0...*', '1...*']),
+    Type: z.enum(['Association', 'Composition', 'Inheritance',
+      'Dependency', 'Aggregation']).describe('Tipo de conector.'),
+  });
 
-  export interface ConnectorObject {
-    Source: Connection;
-    Type: ConnectorType;
-    Target: Connection;
-  }
-
-  export interface Connection {
-    Class: ClassObject;
-    Multiplicity: Multiplicity;
-  }
-
-  export enum Multiplicity {
-    ZeroToOne = '0...1',
-    One = '1...1',
-    Many = '*...*',
-    ZeroToMany = '0...*',
-    OneToMany = '1...*',
-  }
-
-  export enum ConnectorType {
-    Association = 'Association',
-    Composition = 'Composition',
-    Inheritance = 'Inheritance',
-    Dependency = 'Dependency',
-    Aggregation = 'Aggregation'
-  }`;
+  diagramSchema = z.object({
+    classes: z.array(this.classSchema).describe('Clases en el diagrama.'),
+    connectors: z.array(this.connectorReferenceSchema)
+        .describe('Conexiones entre clases del diagrama.'),
+  }).describe('Diagrama de clases para diseño de base de datos.');
 
   ngOnInit() {
     this.voiceRecognitionService.init();
   }
 
+  public submitPrompt2(prompt: string) {
+    const json = `{
+      "classes": [
+        {
+          "Id": "class_docente12345abc",
+          "Title": "dsads",
+          "Properties": "telefono String, nombre String"
+        }
+      ],
+      "connectors": []
+    }`;
+    this.parseAIResponse(json);
+  }
+
   public async submitPrompt(prompt: string) {
+    if (this.canvas == null) return;
     this.processing = true;
-    switch (this.selectedValue) {
-      case 'class': {await this.submitClassPrompt(prompt); break;}
-      case 'compClass': {await this.submitCompClassPrompt(prompt); break;}
-      case 'relation': {await this.submitRelationPrompt(prompt); break;}
-    }
+    const diagram =JSON.stringify(
+        CodeGenerationService.objectFromDiagram(this.canvas.diagram));
+    const response = await this.ai.models.generateContent({
+      model: 'gemini-2.5-pro',
+      contents: prompt,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: z.toJSONSchema(this.diagramSchema),
+        systemInstruction: 'You are an expert database modeler. ' +
+        'Your only task is to generate a UML database model in JSON format. ' +
+        'You must strictly adhere to the \'responseSchema\' provided. ' +
+        'CRITICAL RULE: For fields with "enum" constraints '+
+        '(Type, Multiplicity), you are only allowed to use the EXACT ' +
+        'string values defined in the list. ' +
+        'Do not generate explanatory text, only the complete JSON object.' +
+        'You must use the following JSON diagram as a base and modify ' +
+        'it in any way you\'re required to including creating new classes ' +
+        'connections, properties in classes, deleting them or editing certain' +
+        'aspects of them. Preserve the class Id in the base JSON. Dont add ' +
+        `properties unless youre asked to. The diagram is: \n${diagram}`,
+      },
+    });
+    console.log(response.text);
+    this.parseAIResponse(response.text!);
+    this.processing = false;
   }
 
-  public async submitClassPrompt(prompt: string): Promise<void> {
-    await this.http.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-        {
-          'system_instruction': {
-            'parts': [
-              {
-                'text': 'Eres un simple traductor de lenguaje natural a un ' +
-                  'objeto en formato JSON. Tu proposito es recibir un ' +
-                  'concepto o descripcion de una clase para el diseño de una' +
-                  ' base de datos. El objeto tiene un \'Title\' que va a ser ' +
-                  'su nombre, formateado en PascalCase. Y también tiene una ' +
-                  'lista de propiedades llamada \'Properties\'. Debes generar' +
-                  ' las propiedades de la clase que estas creando, con dos ' +
-                  'campos. El campo \'Name\' que será el nombre de la ' +
-                  'propiedad formateado en PascalCase y el campo \'Type\' ' +
-                  'en el cual debes escoger el tipo mas adecuado para la ' +
-                  'propiedad entre las siguientes opciones: Integer, Long, ' +
-                  'Short, Float, Double, String, Boolean, Character, Byte, ' +
-                  'LocalDate y LocalDateTime. ' +
-                  'No agregues una propiedad Id o similar.',
-              },
-            ],
+  parseAIResponse(response: string) {
+    const newdiagram = JSON.parse(response);
+    let nodelist: string[] = [];
+    this.canvas!.diagram.nodes.forEach((node) => {
+      if (node.id?.endsWith('_umlClass_header')) {
+        nodelist.push((node as any).parentId);
+      }
+    });
+    console.log(nodelist);
+    newdiagram.classes.forEach((cl: any) => {
+      let found = false;
+      this.canvas!.diagram.nodes.forEach((node) => {
+        if (node.id === cl.Id + '_umlClass_header') {
+          found = true;
+          nodelist = nodelist.filter((str) => str !== (node as any).parentId);
+          node.annotations![0].content = cl.Title;
+        }
+        if (node.id === cl.Id) {
+          const deletelist: NodeModel[] = [];
+          node.children?.forEach((child) => {
+            const childnode = this.canvas?.diagram.getNodeObject(child);
+            if (childnode!.annotations?.length == 1) {
+              deletelist.push(childnode!);
+            }
+          });
+          deletelist.forEach((item) => {
+            this.canvas?.diagram.remove(item);
+          });
+          (cl.Properties as string).split(', ').forEach((propstr) => {
+            const splitprop = propstr.split(' ');
+            this.canvas?.diagram.addChildToUmlNode(node,
+                {name: splitprop[0], type: splitprop[1]},
+                'Attribute',
+            );
+          });
+        }
+      });
+      if (!found) {
+        this.canvas!.addClass({
+          Id: cl.Id,
+          Title: cl.Title,
+          Properties: this.propertiesFromResponse(cl.Properties),
+          OffsetX: cl.OffsetX,
+          OffsetY: cl.OffsetY,
+        }, false);
+      }
+    });
+    nodelist.forEach((id) => {
+      this.canvas!.diagram.remove(this.canvas!.diagram.getNodeObject(id));
+    });
+    this.canvas!.diagram.connectors = [];
+    newdiagram.connectors.forEach((conn: any) => {
+      const newconn: ConnectorObject = {
+        Source: {
+          Class: {Id: conn.SourceClassId, Title: '', Properties: [],
+            OffsetX: 0, OffsetY: 0,
           },
-          'contents': [
-            {
-              'parts': [
-                {
-                  'text': prompt,
-                },
-              ],
-            },
-          ],
-        }, {headers: new HttpHeaders()
-            .set('X-goog-api-key', 'AIzaSyBkL1ki9-D_DBf31IXI5FODpfSfRwMb3ik')},
-    ).subscribe((response: any) => {
-      const formattedText: string =
-        response.candidates![0].content!.parts[0].text;
-      const textJson: string =
-        formattedText.substring(8, formattedText.length - 4);
-      const json = JSON.parse(textJson);
-      this.canvas?.addClass(json);
-      this.processing = false;
-      this.prompt = '';
+          Multiplicity: conn.SourceMultiplicity,
+        },
+        Target: {
+          Class: {Id: conn.TargetClassId, Title: '', Properties: [],
+            OffsetX: 0, OffsetY: 0,
+          },
+          Multiplicity: conn.TargetMultiplicity,
+        },
+        Type: conn.Type,
+      };
+      this.canvas?.addConnector(newconn);
     });
   }
 
-  public async submitRelationPrompt(prompt: string): Promise<void> {
-    if (this.canvas == null) return;
-    const diagram: DiagramObject =
-      CodeGenerationService.objectFromDiagram(this.canvas.diagram);
-    await this.http.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-        {
-          'system_instruction':
-        {
-          'parts': [
-            {
-              'text': `Eres un simple traductor de lenguaje natural a una lis` +
-              `ta de objectos en formato JSON. Tu proposito es recibir un con` +
-              `cepto o descripcion de una relacion o relaciones que se desean` +
-              ` añadir a un diagrama de base de datos. Se te será proporciona` +
-              `da un objecto con una lista de clases y los conectores entre e` +
-              `stos. Con esta informacion debes crear una lista de nuevos con` +
-              `ectores que veas conveniente añadir basado en la informacion y` +
-              ` la descripcion que se te dió. La clase 'Connector' tiene: Dos` +
-              ` clases 'Connection', una llamada 'Source' y otra 'Target' que` +
-              ` representan los dos lados de la asociacion. La clase 'Connect` +
-              `ion' tiene un objeto 'Class' el cual tiene una propiedad 'Id'.` +
-              ` Ademas 'Connection' tiene una propiedad 'Multiplicity' la cua` +
-              `l puede representar la cardinalidad en el lado correspondiente` +
-              ` de la conexion con las siguientes opciones: '0...0', '0...1',` +
-              ` '1...1', '0...*', '1...*' y '*...*'. 'Conector' también tiene` +
-              ` una propiedad 'Type' la cual indica el tipo de relacion que r` +
-              `epresenta y puede tener los valores: 'Association', 'Inheritan` +
-              `ce', 'Composition', 'Dependency' y 'Aggregation'`,
-            },
-          ],
-        },
-          'contents': [
-            {
-              'parts': [
-                {
-                  'text': prompt + '\n\n' + JSON.stringify(diagram),
-                },
-              ],
-            },
-          ],
-        }, {headers: new HttpHeaders()
-            .set('X-goog-api-key', 'AIzaSyBkL1ki9-D_DBf31IXI5FODpfSfRwMb3ik')},
-    ).subscribe((response: any) => {
-      const formattedText: string =
-        response.candidates![0].content!.parts[0].text;
-      const textJson: string =
-        formattedText.substring(8, formattedText.length-4);
-      const json: ConnectorObject[] = JSON.parse(textJson);
-      console.log(json);
-      json.forEach((connector) => {
-        this.canvas?.addConnector(connector);
+  propertiesFromResponse(properties: string): Property[] {
+    const list: Property[] = [];
+    properties.split(', ').forEach((prop) => {
+      const splitprop = prop.split(' ');
+      list.push({
+        Name: splitprop[0],
+        Type: splitprop[1] as DataType,
       });
-      this.processing = false;
-      this.prompt = '';
     });
-  }
-
-  public async submitCompClassPrompt(prompt: string): Promise<void> {
-    if (this.canvas == null) return;
-    const connectors: DiagramObject =
-      CodeGenerationService.objectFromDiagram(this.canvas.diagram);
-    await this.http.post('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-        {
-          'system_instruction':
-        {
-          'parts': [
-            {
-              'text': `Eres un simple traductor de lenguaje natural a un ` +
-              `objeto en formato JSON. Tu proposito es recibir un concepto o ` +
-              `descripcion de una clase para el diseño de una base de datos y` +
-              ` crear un conjunto de clases y sus relaciones a como veas conv` +
-              `eniente. Siguiendo la descripción que se te dió, crea un Objet` +
-              `o de tipo DiagramObject que contenga las nuevas clases y relac` +
-              `iones que creas necesarias. La definición de DiagramObject y s` +
-              `us componentes es: ${this.classDefinitions} \n\n Cuando pueble` +
-              `s el campo 'Id' de 'Class' haz que este Id empiece con 'class_` +
-              `' seguido de un conjunto aleatorio de 15 caracteres alfabetico` +
-              `s mayusculas y minusculas. Evita que los caracteres aleatorios` +
-              ` esten ordenados y que las mayusculas y minusculas tengan un p` +
-              `atron aleatorio no intercalado. Los 'Title' en 'Class' deben c` +
-              `umplir el formato PascalCase y no agregues ninguna propiedad d` +
-              `e tipo Id a la lista 'Properties'. Al poblar el campo 'Multipl` +
-              `icity' limitate a llenarlo con: '0...0', '0...1', '1...1', '0.` +
-              `..*', '1...*' y '*...*'. Asegurate de crear los tipos de relac` +
-              `iones que veas mas adecuado para cada relación. Las relaciones` +
-              `pueden ser de tipo: 'Association', 'Inheritance', 'Composition` +
-              `', 'Dependency' y 'Aggregation'`,
-            },
-          ],
-        },
-          'contents': [
-            {
-              'parts': [
-                {
-                  'text': prompt + '\n\n' + JSON.stringify(connectors),
-                },
-              ],
-            },
-          ],
-        }, {headers: new HttpHeaders()
-            .set('X-goog-api-key', 'AIzaSyBkL1ki9-D_DBf31IXI5FODpfSfRwMb3ik')},
-    ).subscribe((response: any) => {
-      const formattedText: string =
-        response.candidates![0].content!.parts[0].text;
-      const textJson: string =
-        formattedText.substring(8, formattedText.length-4);
-      const json: DiagramObject = JSON.parse(textJson);
-      console.log(json);
-      json.Classes.forEach((classObj) => {
-        this.canvas?.addClass(classObj, false);
-      });
-      json.Connectors.forEach((connector) => {
-        this.canvas?.addConnector(connector);
-      });
-      this.processing = false;
-      this.prompt = '';
-    });
+    return list;
   }
 
   generatePNG(): void {
@@ -272,25 +215,79 @@ export class NavbarComponent implements OnInit {
   }
 
   async loadJson(): Promise<void> {
-    // Check for API support
     if (!('showOpenFilePicker' in window)) {
       alert('Your browser does not support the File System Access API.');
       return;
     }
-
     try {
-      // Prompt the user to select one or more files
       const fileHandles = await window.showOpenFilePicker({
-        multiple: true,
+        types: [
+          {
+            description: 'Picture',
+            accept: {
+              'image/jpeg': ['.jpg', '.jpeg'],
+            },
+          },
+          {
+            description: 'JSON',
+            accept: {
+              'applicaiton/json': ['.json'],
+            },
+          },
+        ],
       });
       for (const handle of fileHandles) {
         const file = await handle.getFile();
-        const content = await file.text();
-        this.canvas?.diagram.loadDiagram(content);
+        if (file.type === 'application/json') {
+          const content = await file.text();
+          this.canvas?.diagram.loadDiagram(content);
+        }
+        if (file.type === 'image/jpeg') {
+          const base64image = await this.encodeFileToBase64(file);
+          console.log(base64image);
+          const response = await this.ai.models.generateContent({
+            model: 'gemini-2.5-pro',
+            contents: [
+              {
+                inlineData: {
+                  data: (base64image as string).split(',')[1],
+                  mimeType: 'image/jpeg',
+                },
+              },
+            ],
+            config: {
+              responseMimeType: 'application/json',
+              responseSchema: z.toJSONSchema(this.diagramSchema),
+              systemInstruction: 'You are an expert database modeler. ' +
+              'Your only task is to generate a UML database model in JSON format. ' +
+              'You must strictly adhere to the \'responseSchema\' provided. ' +
+              'CRITICAL RULE: For fields with "enum" constraints '+
+              '(Type, Multiplicity), you are only allowed to use the EXACT ' +
+              'string values defined in the list. ' +
+              'Do not generate explanatory text, only the complete JSON object.' +
+              'You must extract from the attached picture of a drawn UML database class diagram the classes with their names, their properties and property types, relative positions and the connections between them taking into account multiplicity and connection type. Once youve analyzed the picture, return the diagram in the specified JSON Schema.',
+            },
+          });
+          console.log(response.text!);
+          this.parseAIResponse(response.text!);
+        }
       }
     } catch (err) {
       console.error('File access error:', err);
     }
+  }
+
+  encodeFileToBase64(file: File) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(reader.result);
+      };
+      reader.onerror = (error) => {
+        reject(error);
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   onSpeechRecognitionButton(): void {

@@ -10,6 +10,8 @@ export interface ClassObject {
   Id: string;
   Title: string;
   Properties: Property[];
+  OffsetX: number;
+  OffsetY: number;
 }
 
 export interface Property {

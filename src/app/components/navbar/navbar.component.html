@@ -15,52 +15,6 @@
     <div class="collapse navbar-collapse" id="navbarNavDropdown">
       <ul class="navbar-nav">
         <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="false">
-            Generate
-          </a>
-          <div class="dropdown-menu" style="width: 300px;">
-            <div class="px-4 py-3">
-              <div class="mb-3">
-                <label for="PromptInput" class="form-label">Prompt</label>
-                <div class="input-group mb-3">
-                  <input type="text" #PromptInput class="form-control" id="PromptInput" placeholder="Office" [ngModel]="prompt">
-                  @if (voiceRecognitionService.canListen) {
-                    <button (click)="onSpeechRecognitionButton()" class="btn btn-outline-secondary">{{voiceRecognitionService.isListening ? '🛑' : '🎤'}}</button>
-                  }
-                </div>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="radioDefault" id="radioDefault1" value="class" checked [(ngModel)]="selectedValue">
-                <label class="form-check-label" for="radioDefault1">
-                  Simple class
-                </label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="radioDefault" id="radioDefault2" value="compClass" [(ngModel)]="selectedValue">
-                <label class="form-check-label" for="radioDefault2">
-                  Complex class
-                </label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="radio" name="radioDefault" id="radioDefault2" value="relation" [(ngModel)]="selectedValue">
-                <label class="form-check-label" for="radioDefault2">
-                  Relation
-                </label>
-              </div>
-              <div style="width: 100%; padding-top: 5px; display: flex; flex-direction: row; justify-content: center;">
-                <button (click)="submitPrompt(PromptInput.value)" [disabled]="PromptInput.value.length === 0 || processing" class="btn btn-primary">
-                  @if (processing) {
-                    <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-                  }
-                  @else {
-                    <span class="button-text">Submit</span>
-                  }
-                </button>
-              </div>
-            </div>
-          </div>
-        </li>
-        <li class="nav-item dropdown">
           <a class="nav-link dropdown-toggle" role="button" data-bs-toggle="dropdown" aria-expanded="false">
             Export
           </a>
@@ -75,6 +29,23 @@
             Import
           </a>
         </li>
+        
+        <form class="d-flex">
+          <div class="input-group">
+            @if (voiceRecognitionService.canListen) {
+              <button (click)="onSpeechRecognitionButton()" class="btn btn-outline-secondary">{{voiceRecognitionService.isListening ? '🛑' : '🎤'}}</button>
+            }
+            <input type="text" class="form-control" id="PromptInput" placeholder="Prompt..." [(ngModel)]="prompt">
+            <button (click)="submitPrompt(prompt)" [disabled]="prompt.length === 0 || processing" class="btn btn-primary">
+              @if (processing) {
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              }
+              @else {
+                <i class="bi bi-send"></i>
+              }
+            </button>
+          </div>
+        </form>
       </ul>
     </div>
   </div>

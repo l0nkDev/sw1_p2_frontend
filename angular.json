@@ -26,6 +26,7 @@
             ],
             "styles": [
               "node_modules/bootstrap/dist/css/bootstrap.min.css",
+              "node_modules/bootstrap-icons/font/bootstrap-icons.min.css",
               "src/styles.css",
               "./node_modules/@syncfusion/ej2-material-theme/styles/material.css"
             ],
@@ -67,10 +68,10 @@
           "builder": "@angular-devkit/build-angular:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "sw1_p2_frontend:build:production"
+              "buildTarget": "sw1_p1_frontend:build:production"
             },
             "development": {
-              "buildTarget": "sw1_p2_frontend:build:development"
+              "buildTarget": "sw1_p1_frontend:build:development"
             }
           },
           "defaultConfiguration": "development"
