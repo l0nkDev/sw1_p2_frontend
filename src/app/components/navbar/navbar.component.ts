@@ -14,6 +14,8 @@ import {ConnectorObject, Property}
   from '../../interfaces/serializedDiagram.interface';
 import {DataType} from '../../interfaces/classproperty.interface';
 import {NodeModel} from '@syncfusion/ej2-angular-diagrams';
+import {SpringGenerationService}
+  from '../../services/springGeneration/springgeneration.service';
 
 @Component({
   selector: 'app-navbar',
@@ -71,20 +73,6 @@ export class NavbarComponent implements OnInit {
 
   ngOnInit() {
     this.voiceRecognitionService.init();
-  }
-
-  public submitPrompt2(prompt: string) {
-    const json = `{
-      "classes": [
-        {
-          "Id": "class_docente12345abc",
-          "Title": "dsads",
-          "Properties": "telefono String, nombre String"
-        }
-      ],
-      "connectors": []
-    }`;
-    this.parseAIResponse(json);
   }
 
   public async submitPrompt(prompt: string) {
@@ -205,7 +193,11 @@ export class NavbarComponent implements OnInit {
   }
 
   generateJava(): void {
-    CodeGenerationService.generateZipDownload(this.canvas!.diagram);
+    SpringGenerationService.generateZipDownload(this.canvas!.diagram);
+  }
+
+  generateFlutter(): void {
+    console.log(CodeGenerationService.genSchema(this.canvas!.diagram));
   }
 
   generateJson(): void {
@@ -258,14 +250,18 @@ export class NavbarComponent implements OnInit {
             config: {
               responseMimeType: 'application/json',
               responseSchema: z.toJSONSchema(this.diagramSchema),
-              systemInstruction: 'You are an expert database modeler. ' +
-              'Your only task is to generate a UML database model in JSON format. ' +
-              'You must strictly adhere to the \'responseSchema\' provided. ' +
-              'CRITICAL RULE: For fields with "enum" constraints '+
-              '(Type, Multiplicity), you are only allowed to use the EXACT ' +
-              'string values defined in the list. ' +
-              'Do not generate explanatory text, only the complete JSON object.' +
-              'You must extract from the attached picture of a drawn UML database class diagram the classes with their names, their properties and property types, relative positions and the connections between them taking into account multiplicity and connection type. Once youve analyzed the picture, return the diagram in the specified JSON Schema.',
+              systemInstruction: `You are an expert database modeler. 
+              Your only task is to generate a UML database model in JSON 
+              format. You must strictly adhere to the 'responseSchema' 
+              provided. CRITICAL RULE: For fields with "enum" constraints 
+              (Type, Multiplicity), you are only allowed to use the EXACT 
+              string values defined in the list. Do not generate explanatory 
+              text, only the complete JSON object. You must extract from the 
+              attached picture of a drawn UML database class diagram the classes
+              with their names, their properties and property types, relative 
+              positions and the connections between them taking into account 
+              multiplicity and connection type. Once youve analyzed the picture,
+              return the diagram in the specified JSON Schema.`,
             },
           });
           console.log(response.text!);
