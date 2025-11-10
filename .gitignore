@@ -135,6 +135,6 @@ dist
 .yarn/install-state.gz
 .pnp.*
 syncfusion-license.txt
-/.angular/cache
-/.angular/cache
-/src/environments
+.angular/cache
+.angular/cache
+src/environments
