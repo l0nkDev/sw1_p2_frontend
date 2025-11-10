@@ -92,7 +92,8 @@ export class FlutterGenerationService {
   static classToService(schema: codegenClass): string {
     const Ptitle = this.pascalCase(schema.title);
     const Ctitle = this.camelCase(schema.title);
-    let string = `import 'package:dio/dio.dart';\n`;
+    let string = `import 'package:intl/intl.dart';\n`;
+    string += `import 'package:dio/dio.dart';\n`;
     string += `import 'package:flutter_generated/models/`;
     string += `${Ctitle}.dart';\n`;
     string += `import './../config.dart' as config;\n\n`;
@@ -121,7 +122,13 @@ export class FlutterGenerationService {
         'id': null,\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
-      string += `        '${title}': ${Ctitle}.${title},\n`;
+      if (prop.type == DataType.localdate) {
+        string += `        '${title}': DateFormat('yyyy-MM-dd')` +
+        `.format(${Ctitle}.${title}!),\n`;
+      } else if (prop.type == DataType.localdatetime) {
+        string += `        '${title}': DateFormat('yyyy-MM-ddTHH:mm:ss.SSS')` +
+        `.format(${Ctitle}.${title}!),\n`;
+      } else string += `        '${title}': ${Ctitle}.${title},\n`;
     });
     string += `      });
       return ${Ptitle}.fromJson(response.data);
@@ -137,7 +144,13 @@ export class FlutterGenerationService {
         'id': int.parse(id),\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
-      string += `        '${title}': ${Ctitle}.${title},\n`;
+      if (prop.type == DataType.localdate) {
+        string += `        '${title}': DateFormat('yyyy-MM-dd')` +
+        `.format(${Ctitle}.${title}!),\n`;
+      } else if (prop.type == DataType.localdatetime) {
+        string += `        '${title}': DateFormat('yyyy-MM-ddTHH:mm:ss.SSS')` +
+        `.format(${Ctitle}.${title}!),\n`;
+      } else string += `        '${title}': ${Ctitle}.${title},\n`;
     });
     string += `      });
       return ${Ptitle}.fromJson(response.data);
@@ -160,7 +173,8 @@ export class FlutterGenerationService {
   static classToScreen(schema: codegenClass): string {
     const Ptitle = this.pascalCase(schema.title);
     const Ctitle = this.camelCase(schema.title);
-    let s = `import 'package:flutter/material.dart';
+    let s = `import 'package:intl/intl.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_generated/models/${Ctitle}.dart';
 import 'package:flutter_generated/services/${Ctitle}_service.dart';
 
@@ -203,7 +217,13 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
     if (${Ctitle} != null) {\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
-      s += `      _${title}Controller.text = ${Ctitle}.${title}!.toString();\n`;
+      if (prop.type == DataType.localdate) {
+        s += `      _${title}Controller.text = ${Ctitle}.${title}!` +
+        `.toString().split(' ')[0];\n`;
+      } else {
+        s +=
+        `      _${title}Controller.text = ${Ctitle}.${title}!.toString();\n`;
+      }
     });
 
     s += `    } else {\n`;
@@ -255,7 +275,7 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
 
                 Navigator.pop(context);
                 _refresh${Ptitle}s();
-                _showSnackBar(                    ` +
+                _showSnackBar(\n                    ` +
 `'${Ptitle} \${${Ctitle} == null ? 'created' : 'updated'} successfully');
               } catch (e) {
                 _showSnackBar(e.toString());
@@ -347,20 +367,13 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
                     ),
                     onDismissed: (_) => _delete${Ptitle}(${Ctitle}),
                     child: ListTile(\n`;
-    schema.properties.forEach((prop, index) => {
-      const pPtitle = this.pascalCase(prop.title);
-      const pCtitle = this.camelCase(prop.title);
-      if (index == 0) {
-        s += `                      title: Text('${pPtitle}: ` +
-        `\${${Ctitle}.${pCtitle}}'),\n`;
-      }
-      if (index == 1) {
-        s += `                      subtitle: Text('${pPtitle}: ` +
-        `\${${Ctitle}.${pCtitle}}\\n`;
-      }
-      if (index > 1) s += `${pPtitle}: \${${Ctitle}.${pCtitle}}\\n`;
+    schema.properties.forEach((prop, i) => {
+      const display = this.flutterDisplayParse(prop, Ctitle);
+      if (i == 0) s += `                      title: Text(${display}'),\n`;
+      if (i == 1) s += `                      subtitle: Text(${display}\\n'\n`;
+      if (i > 1) s += `                        ${display}\\n'\n`;
     });
-    if (schema.properties.length > 1) s += `'),\n`;
+    if (schema.properties.length > 1) s += `                      ),\n`;
     s += `                      trailing: Row(
                         mainAxisSize: MainAxisSize
                             .min, // Makes the Row take minimum space
@@ -487,6 +500,8 @@ class _MainAppState extends State<MainApp> {
       case DataType.boolean: return 'bool';
       case DataType.float: return 'double';
       case DataType.string: return 'String';
+      case DataType.localdate: return 'DateTime';
+      case DataType.localdatetime: return 'DateTime';
       default: return 'int';
     }
   }
@@ -504,7 +519,27 @@ class _MainAppState extends State<MainApp> {
         return `${title}: bool.parse(_${title}Controller.text),`;
       case DataType.float:
         return `${title}: double.parse(_${title}Controller.text),`;
+      case DataType.localdate:
+        return `${title}: DateTime.parse(_${title}Controller.text),`;
+      case DataType.localdatetime:
+        return `${title}: DateTime.parse(_${title}Controller.text),`;
       default: return `${title}: int.parse(_${title}Controller.text),`;
+    }
+  }
+
+  static flutterDisplayParse(prop: codegenProperty, name: string): string {
+    const Ptitle = this.pascalCase(prop.title);
+    const Ctitle = this.camelCase(prop.title);
+    switch (prop.type) {
+      case DataType.boolean:
+        return `'${Ptitle}: \${${name}.${Ctitle}! ? '✔' : '✘'}`;
+      case DataType.localdate:
+        return `'${Ptitle}: \${DateFormat('dd-MM-yyyy')` +
+        `.format(${name}.${Ctitle}!)}`;
+      case DataType.localdatetime:
+        return `'${Ptitle}: \${DateFormat('dd-MM-yyyy hh:mm:ss.SSS')` +
+        `.format(${name}.${Ctitle}!)}`;
+      default: return `'${Ptitle}: \${${name}.${Ctitle}}`;
     }
   }
 }
