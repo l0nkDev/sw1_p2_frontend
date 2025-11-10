@@ -137,3 +137,4 @@ dist
 syncfusion-license.txt
 /.angular/cache
 /.angular/cache
+/src/environments

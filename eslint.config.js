@@ -20,6 +20,7 @@ module.exports = tseslint.config(
       "@typescript-eslint/no-explicit-any": "off",
       "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": "error",
+      "linebreak-style": "off",
       "new-cap": [
       "error",
       {

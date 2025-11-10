@@ -1,7 +1,6 @@
 import JSZip from 'jszip';
 import {saveAs} from 'file-saver';
 import {Diagram} from '@syncfusion/ej2-angular-diagrams';
-import {ClassObject} from '../../interfaces/serializedDiagram.interface';
 import {CodeGenerationService} from '../codeGeneration/codegeneration.service';
 import {codegenClass} from '../../interfaces/codegenSchema.interface';
 
@@ -9,7 +8,6 @@ export class SpringGenerationService {
   public static async generateZipDownload(diagram: Diagram) {
     const zip = new JSZip();
     const genSchema = CodeGenerationService.genSchema(diagram);
-    console.log(genSchema);
     const response = await fetch('generated.zip');
     const zipTemplate = await response.arrayBuffer();
     const loadedZip = await zip.loadAsync(zipTemplate);
@@ -54,13 +52,6 @@ export class SpringGenerationService {
   }
   static snakeCase(string: string): string {
     return string.replace(' ', '').replace('-', '').toLowerCase();
-  }
-
-  static getClassObject(
-      classID: string,
-      classes: ClassObject[],
-  ): ClassObject | undefined {
-    return classes.find((classObj) => classID === classObj.Id);
   }
 
   static classToController(schema: codegenClass): string {
@@ -133,7 +124,7 @@ public class ${Ptitle}DTO {
     schema.relations.forEach((rel) => {
       string +=
         `    private ${rel.isMany ? 'List<Long>' : 'Long'} ` +
-        `${rel.title}${rel.isMany ? 'Ids' : 'Id'};\n`;
+        `${this.camelCase(rel.title)}${rel.isMany ? 'Ids' : 'Id'};\n`;
     });
     string += `}`;
     return string;
@@ -168,16 +159,16 @@ public class ${this.pascalCase(schema.title)} {
           `    @JoinColumn(name="${this.snakeCase(rel.title)}_id")\n`;
         }
         string += `    private ${this.pascalCase(rel.title)} ` +
-        `${this.camelCase(schema.title)};\n`;
+        `${this.camelCase(rel.title)};\n`;
       }
-      if (rel.isMany && !rel.hasMany) {
+      if (!rel.isMany && rel.hasMany) {
         string += `    @ManyToOne\n`;
         string += `    @JoinColumn(name="` +
         `${this.snakeCase(rel.title)}_id")\n`;
         string += `    private ${this.pascalCase(rel.title)} ` +
         `${this.camelCase(rel.title)};\n`;
       }
-      if (!rel.isMany && rel.hasMany) {
+      if (rel.isMany && !rel.hasMany) {
         string += `    @OneToMany(mappedBy="` +
         `${this.camelCase(schema.title)}")\n`;
         string += `    private List<${this.pascalCase(rel.title)}> ` +
@@ -185,7 +176,7 @@ public class ${this.pascalCase(schema.title)} {
       }
       if (rel.isMany && rel.hasMany) {
         string += `    @ManyToMany${rel.owned ?
-          '' : `(mappedBy="${this.camelCase(rel.title)}s")`}\n`;
+          '' : `(mappedBy="${this.camelCase(schema.title)}s")`}\n`;
         if (rel.owned) {
           string += `    @JoinTable(\n`;
           string += `        name="${this.camelCase(schema.title)}_` +

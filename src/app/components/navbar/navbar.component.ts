@@ -16,6 +16,8 @@ import {DataType} from '../../interfaces/classproperty.interface';
 import {NodeModel} from '@syncfusion/ej2-angular-diagrams';
 import {SpringGenerationService}
   from '../../services/springGeneration/springgeneration.service';
+import {FlutterGenerationService}
+  from '../../services/flutterGeneration/fluttergeneration.service';
 
 @Component({
   selector: 'app-navbar',
@@ -28,7 +30,7 @@ export class NavbarComponent implements OnInit {
   @Input() canvas: CanvasComponent | null = null;
   readonly http = inject(HttpClient);
   processing = false;
-  prompt = '';
+  public prompt = '';
   ai = new GoogleGenAI({apiKey: environment.GOOGLE_API_KEY});
 
   propertySchema = z.object({
@@ -76,6 +78,7 @@ export class NavbarComponent implements OnInit {
   }
 
   public async submitPrompt(prompt: string) {
+    console.log(`"${prompt}"`);
     if (this.canvas == null) return;
     this.processing = true;
     const diagram =JSON.stringify(
@@ -97,7 +100,7 @@ export class NavbarComponent implements OnInit {
         'it in any way you\'re required to including creating new classes ' +
         'connections, properties in classes, deleting them or editing certain' +
         'aspects of them. Preserve the class Id in the base JSON. Dont add ' +
-        `properties unless youre asked to. The diagram is: \n${diagram}`,
+        `properties unless youre asked to. The diagram is: ${diagram}`,
       },
     });
     console.log(response.text);
@@ -197,7 +200,7 @@ export class NavbarComponent implements OnInit {
   }
 
   generateFlutter(): void {
-    console.log(CodeGenerationService.genSchema(this.canvas!.diagram));
+    FlutterGenerationService.generateZipDownload(this.canvas!.diagram);
   }
 
   generateJson(): void {

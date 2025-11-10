@@ -22,6 +22,7 @@
             <li><a class="dropdown-item" (click)="generateJson()">JSON</a></li>
             <li><a class="dropdown-item" (click)="generatePNG()">PNG</a></li>
             <li><a class="dropdown-item" (click)="generateJava()">Spring Project</a></li>
+            <li><a class="dropdown-item" (click)="generateFlutter()">Flutter Project</a></li>
           </div>
         </li>
         <li class="nav-item">
@@ -35,8 +36,8 @@
             @if (voiceRecognitionService.canListen) {
               <button (click)="onSpeechRecognitionButton()" class="btn btn-outline-secondary">{{voiceRecognitionService.isListening ? '🛑' : '🎤'}}</button>
             }
-            <input type="text" class="form-control" id="PromptInput" placeholder="Prompt..." [(ngModel)]="prompt">
-            <button (click)="submitPrompt(prompt)" [disabled]="prompt.length === 0 || processing" class="btn btn-primary">
+            <input type="text" class="form-control" id="PromptInput" placeholder="Prompt..." [(ngModel)]="prompt" name="prompt">
+            <button (click)="submitPrompt(prompt)" [disabled]="prompt.length == 0 || processing" class="btn btn-primary">
               @if (processing) {
                 <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
               }
