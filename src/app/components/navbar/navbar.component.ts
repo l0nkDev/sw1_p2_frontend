@@ -18,6 +18,8 @@ import {SpringGenerationService}
   from '../../services/springGeneration/springgeneration.service';
 import {FlutterGenerationService}
   from '../../services/flutterGeneration/fluttergeneration.service';
+import {OpenApiGenerationService}
+  from '../../services/openApiGeneration/openapigeneration.service';
 
 @Component({
   selector: 'app-navbar',
@@ -217,6 +219,10 @@ export class NavbarComponent implements OnInit {
     const data: string = this.canvas?.diagram.saveDiagram() as string;
     const blob = new Blob([data], {type: 'application/json'});
     saveAs( blob, 'diagram.json');
+  }
+
+  generateOpenApi(): void {
+    OpenApiGenerationService.generateJSON(this.canvas!.diagram);
   }
 
   async loadJson(): Promise<void> {

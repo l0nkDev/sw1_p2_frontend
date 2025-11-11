@@ -285,6 +285,7 @@ public class ${Ptitle}Service {
     public ${Ptitle}DTO save${Ptitle}(${Ptitle}DTO ${Ctitle}DTO) {
         mapperSetup();
         ${Ptitle} ${Ctitle} = modelMapper.map(${Ctitle}DTO, ${Ptitle}.class);
+        ${Ctitle}Repository.save(${Ctitle});
 ${this.genRelationHandling(schema)}
         ${Ctitle}Repository.save(${Ctitle});
         return ${Ctitle}DTO;
@@ -375,17 +376,21 @@ ${this.genRelationHandling(schema)}
       if (rel.isMany && rel.hasMany) {
         string +=
 `        if (${Ctitle}DTO.get${rPtitle}Ids() != null) {
-            Set<${rPtitle}> ${rCtitle}s = new HashSet(${Ctitle}.get${rPtitle}` +
-            `s());
-            ${Ctitle}.get${rPtitle}s().forEach(${rCtitle} -> {
-                if (!${Ctitle}DTO.get${rPtitle}Ids().contains(${rCtitle}` +
-                `.getId())) {
-                    ${rCtitle}.get${Ptitle}s().remove(${Ctitle});
-                    ${rCtitle}s.remove(${rCtitle});
-                    ${rCtitle}Repository.save(${rCtitle});
-                }
-                ${Ctitle}.set${rPtitle}s(${rCtitle}s);
-            });
+            if (${Ctitle}.get${rPtitle}s() != null) {
+              Set<${rPtitle}> ${rCtitle}s = new HashSet(${Ctitle}` +
+              `.get${rPtitle}s());
+              ${Ctitle}.get${rPtitle}s().forEach(${rCtitle} -> {
+                  if (!${Ctitle}DTO.get${rPtitle}Ids().contains(${rCtitle}` +
+                  `.getId())) {
+                      ${rCtitle}.get${Ptitle}s().remove(${Ctitle});
+                      ${rCtitle}s.remove(${rCtitle});
+                      ${rCtitle}Repository.save(${rCtitle});
+                  }
+                  ${Ctitle}.set${rPtitle}s(${rCtitle}s);
+              });
+            } else {
+              ${Ctitle}.set${rPtitle}s(new HashSet());
+            }
             ${Ctitle}DTO.get${rPtitle}Ids().forEach(${rCtitle}Id -> {
                 ${rPtitle} ${rCtitle} = entityManager.getReference(${rPtitle}` +
                 `.class, ${rCtitle}Id);

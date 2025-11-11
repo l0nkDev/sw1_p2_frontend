@@ -23,6 +23,7 @@
             <li><a class="dropdown-item" (click)="generatePNG()">PNG</a></li>
             <li><a class="dropdown-item" (click)="generateJava()">Spring Project</a></li>
             <li><a class="dropdown-item" (click)="generateFlutter()">Flutter Project</a></li>
+            <li><a class="dropdown-item" (click)="generateOpenApi()">OpenAPI specification</a></li>
           </div>
         </li>
         <li class="nav-item">
@@ -30,7 +31,7 @@
             Import
           </a>
         </li>
-        
+
         <form class="d-flex">
           <div class="input-group">
             @if (voiceRecognitionService.canListen) {
