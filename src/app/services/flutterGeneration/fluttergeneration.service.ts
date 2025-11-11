@@ -1,7 +1,7 @@
 import {Diagram} from '@syncfusion/ej2-angular-diagrams';
 import {CodeGenerationService} from '../codeGeneration/codegeneration.service';
 import JSZip from 'jszip';
-import {codegenClass, codegenProperty, codegenSchema}
+import {codegenClass, codegenProperty, codegenRelation, codegenSchema}
   from '../../interfaces/codegenSchema.interface';
 import saveAs from 'file-saver';
 import {DataType} from '../../interfaces/classproperty.interface';
@@ -57,33 +57,45 @@ export class FlutterGenerationService {
       string +=
       `  final ${this.typeToFlutter(prop.type as DataType)}? ${title};\n`;
     });
+    schema.relations.forEach((rel) => {
+      const title = this.camelCase(rel.title);
+      if (rel.isMany) string += `  final List<int>? ${title}Ids;`;
+      else string += `  final int? ${title}Id;`;
+    });
     string += `\n  ${Ptitle} ({\n`;
     string += `    this.id,\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
       string += `    this.${title},\n`;
     });
+    schema.relations.forEach((rel) => {
+      const title = this.camelCase(rel.title);
+      if (rel.isMany) string += `    this.${title}Ids,\n`;
+      else string += `    this.${title}Id,\n`;
+    });
     string += `  });\n\n`;
     string += `  factory ${Ptitle}.fromJson(Map<String, dynamic> json) {\n`;
-    string += `    if (json['attributes'] != null) {\n`;
-    string += `      final attributes = json['attributes'];\n`;
-    string += `      return ${Ptitle}(\n`;
-    string += `        id: json['id'],\n`;
-    schema.properties.forEach((prop) => {
-      const title = this.camelCase(prop.title);
-      string += `        ${title}: ${this.parseType(prop)}\n`;
-    });
-    string += `      );\n    }\n\n`;
     string += `    return ${Ptitle}(\n`;
     string += `      id: json['id'],\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
       string += `      ${title}: ${this.parseType(prop, false)}\n`;
     });
-    string += `    );\n  }\n\n  Map<String, dynamic> toJson() {\n    return {`;
+    schema.relations.forEach((rel) => {
+      const title = this.camelCase(rel.title);
+      if (rel.isMany) string += `      ${title}Ids: json['${title}Ids'],\n`;
+      else string += `      ${title}Id: json['${title}Id'],\n`;
+    });
+    string +=
+    `    );\n  }\n\n  Map<String, dynamic> toJson() {\n    return {\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
       string += `      '${title}': ${title},\n`;
+    });
+    schema.relations.forEach((rel) => {
+      const title = this.camelCase(rel.title);
+      if (rel.isMany) string += `      '${title}Ids': ${title}Ids,\n`;
+      else string += `      '${title}Id': ${title}Id,\n`;
     });
     string += `    };\n  }\n}`;
     return string;
@@ -92,45 +104,50 @@ export class FlutterGenerationService {
   static classToService(schema: codegenClass): string {
     const Ptitle = this.pascalCase(schema.title);
     const Ctitle = this.camelCase(schema.title);
-    let string = `import 'package:intl/intl.dart';\n`;
-    string += `import 'package:dio/dio.dart';\n`;
-    string += `import 'package:flutter_generated/models/`;
-    string += `${Ctitle}.dart';\n`;
-    string += `import './../config.dart' as config;\n\n`;
-    string += `class ${Ptitle}Service {\n`;
-    string += `  final Dio _dio;\n\n`;
-    string += `  ${Ptitle}Service()\n`;
-    string += `      : _dio = Dio(BaseOptions(\n`;
-    string += `          baseUrl: config.apiEndpoint,\n`;
-    string += `          headers: {\n`;
-    string += `            'Content-Type': 'application/json',\n`;
-    string += `          },\n`;
-    string += `        ));\n\n`;
-    string += `  Future<List<${Ptitle}>> get${Ptitle}s() async {\n`;
-    string += `    try {\n`;
-    string += `      final response = await _dio.get('/${Ptitle}s');\n`;
-    string += `      final List<dynamic> data = response.data;\n`;
-    string +=
+    let s = `import 'package:intl/intl.dart';\n`;
+    s += `import 'package:dio/dio.dart';\n`;
+    s += `import 'package:flutter_generated/models/`;
+    s += `${Ctitle}.dart';\n`;
+    s += `import './../config.dart' as config;\n\n`;
+    s += `class ${Ptitle}Service {\n`;
+    s += `  final Dio _dio;\n\n`;
+    s += `  ${Ptitle}Service()\n`;
+    s += `      : _dio = Dio(BaseOptions(\n`;
+    s += `          baseUrl: config.apiEndpoint,\n`;
+    s += `          headers: {\n`;
+    s += `            'Content-Type': 'application/json',\n`;
+    s += `          },\n`;
+    s += `        ));\n\n`;
+    s += `  Future<List<${Ptitle}>> get${Ptitle}s() async {\n`;
+    s += `    try {\n`;
+    s += `      final response = await _dio.get('/${Ptitle}s');\n`;
+    s += `      final List<dynamic> data = response.data;\n`;
+    s +=
     `      return data.map((item) => ${Ptitle}.fromJson(item)).toList();\n`;
-    string += `    } catch (e) {\n`;
-    string += `      throw 'Failed to load ${Ctitle}s: \${e.toString()}';\n`;
-    string += `    }\n`;
-    string += `  }\n\n`;
-    string += `  Future<${Ptitle}> create${Ptitle}(${Ptitle} ${Ctitle}) async {
+    s += `    } catch (e) {\n`;
+    s += `      throw 'Failed to load ${Ctitle}s: \${e.toString()}';\n`;
+    s += `    }\n`;
+    s += `  }\n\n`;
+    s += `  Future<${Ptitle}> create${Ptitle}(${Ptitle} ${Ctitle}) async {
     try {
       final response = await _dio.post('/${Ptitle}s', data: {
         'id': null,\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
       if (prop.type == DataType.localdate) {
-        string += `        '${title}': DateFormat('yyyy-MM-dd')` +
+        s += `        '${title}': DateFormat('yyyy-MM-dd')` +
         `.format(${Ctitle}.${title}!),\n`;
       } else if (prop.type == DataType.localdatetime) {
-        string += `        '${title}': DateFormat('yyyy-MM-ddTHH:mm:ss.SSS')` +
+        s += `        '${title}': DateFormat('yyyy-MM-ddTHH:mm:ss.SSS')` +
         `.format(${Ctitle}.${title}!),\n`;
-      } else string += `        '${title}': ${Ctitle}.${title},\n`;
+      } else s += `        '${title}': ${Ctitle}.${title},\n`;
     });
-    string += `      });
+    schema.relations.forEach((rel) => {
+      const title = this.camelCase(rel.title);
+      if (rel.isMany) s += `        '${title}Ids': ${Ctitle}.${title}Ids,\n`;
+      else s += `        '${title}Id': ${Ctitle}.${title}Id,\n`;
+    });
+    s += `      });
       return ${Ptitle}.fromJson(response.data);
     } catch (e) {
       throw 'Failed to create ${Ctitle}: \${e.toString()}';
@@ -145,14 +162,19 @@ export class FlutterGenerationService {
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
       if (prop.type == DataType.localdate) {
-        string += `        '${title}': DateFormat('yyyy-MM-dd')` +
+        s += `        '${title}': DateFormat('yyyy-MM-dd')` +
         `.format(${Ctitle}.${title}!),\n`;
       } else if (prop.type == DataType.localdatetime) {
-        string += `        '${title}': DateFormat('yyyy-MM-ddTHH:mm:ss.SSS')` +
+        s += `        '${title}': DateFormat('yyyy-MM-ddTHH:mm:ss.SSS')` +
         `.format(${Ctitle}.${title}!),\n`;
-      } else string += `        '${title}': ${Ctitle}.${title},\n`;
+      } else s += `        '${title}': ${Ctitle}.${title},\n`;
     });
-    string += `      });
+    schema.relations.forEach((rel) => {
+      const title = this.camelCase(rel.title);
+      if (rel.isMany) s += `        '${title}Ids': ${Ctitle}.${title}Ids,\n`;
+      else s += `        '${title}Id': ${Ctitle}.${title}Id,\n`;
+    });
+    s += `      });
       return ${Ptitle}.fromJson(response.data);
     } catch (e) {
       throw 'Failed to update ${Ctitle}: \${e.toString()}';
@@ -166,8 +188,8 @@ export class FlutterGenerationService {
       throw 'Failed to delete ${Ctitle}: \${e.toString()}';
     }
   }`;
-    string += `}\n`;
-    return string;
+    s += `}\n`;
+    return s;
   }
 
   static classToScreen(schema: codegenClass): string {
@@ -176,9 +198,14 @@ export class FlutterGenerationService {
     let s = `import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_generated/models/${Ctitle}.dart';
-import 'package:flutter_generated/services/${Ctitle}_service.dart';
-
-class ${Ptitle}sScreen extends StatefulWidget {
+import 'package:flutter_generated/services/${Ctitle}_service.dart';\n`;
+    schema.relations.forEach((rel) => {
+      const title = this.camelCase(rel.title);
+      s += `import 'package:flutter_generated/models/${title}.dart';\n`;
+      s +=
+        `import 'package:flutter_generated/services/${title}_service.dart';\n`;
+    });
+    s += `class ${Ptitle}sScreen extends StatefulWidget {
   const ${Ptitle}sScreen({super.key});
 
   @override
@@ -186,11 +213,23 @@ class ${Ptitle}sScreen extends StatefulWidget {
 }
 
 class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
-  final ${Ptitle}Service _${Ctitle}Service = ${Ptitle}Service();
-  late Future<List<${Ptitle}>> _${Ctitle}sFuture;\n\n`;
+  final ${Ptitle}Service _${Ctitle}Service = ${Ptitle}Service();\n`;
+    schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      const rPtitle = this.pascalCase(rel.title);
+      s +=
+        `  final ${rPtitle}Service _${rCtitle}Service = ${rPtitle}Service();\n`;
+      s += `  late Future<List<${rPtitle}>> _${rCtitle}sFuture;\n`;
+    });
+    s +=`  late Future<List<${Ptitle}>> _${Ctitle}sFuture;\n\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
       s += `  final _${title}Controller = TextEditingController();\n`;
+    });
+    schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      if (!rel.isMany) s += `  int? _${rCtitle}Controller;`;
+      else s += `  List<int>? _${rCtitle}sController;`;
     });
     s += `\n  @override
   void initState() {
@@ -209,8 +248,13 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
 
   Future<void> _refresh${Ptitle}s() async {
     setState(() {
-      _${Ctitle}sFuture = _${Ctitle}Service.get${Ptitle}s();
+      _${Ctitle}sFuture = _${Ctitle}Service.get${Ptitle}s();\n`;
+    schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      const rPtitle = this.pascalCase(rel.title);
+      s += `      _${rCtitle}sFuture = _${rCtitle}Service.get${rPtitle}s();\n`;
     });
+    s +=`    });
   }
 
   void _show${Ptitle}Form({${Ptitle}? ${Ctitle}}) {
@@ -225,11 +269,24 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
         `      _${title}Controller.text = ${Ctitle}.${title}!.toString();\n`;
       }
     });
+    schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      if (!rel.isMany) {
+        s += `      _${rCtitle}Controller = ${Ctitle}.${rCtitle}Id;\n`;
+      } else {
+        s += `      _${rCtitle}sController = ${Ctitle}.${rCtitle}Ids;\n`;
+      }
+    });
 
     s += `    } else {\n`;
     schema.properties.forEach((prop) => {
       const title = this.camelCase(prop.title);
-      s += `_${title}Controller.clear();\n`;
+      s += `      _${title}Controller.clear();\n`;
+    });
+    schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      if (!rel.isMany) s += `      _${rCtitle}Controller = null;\n`;
+      else s += `      _${rCtitle}sController = [];\n`;
     });
     s +=`    }
 
@@ -250,6 +307,42 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
         `                decoration: InputDecoration(labelText: '${Ptitle}')\n`;
       s += `              ),\n`;
     });
+    schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      const rPtitle = this.pascalCase(rel.title);
+      if (!rel.isMany) {
+        const display =this.flutterDisplayParseNoTitle(
+            rel.firstprop, rel.firstproptype,
+        );
+        s += `              FutureBuilder(
+                future: _${rCtitle}sFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: \${snapshot.error}'));
+                  }
+                  final ${rCtitle}s = snapshot.data!;
+                  List<DropdownMenuItem<int>> items =
+                    ${rCtitle}s.map<DropdownMenuItem<int>>((${rPtitle} i) {
+                      return DropdownMenuItem<int>(
+                        value: i.id!,
+                        child: Text(${display}'),
+                      );
+                    }).toList();
+                    List<DropdownMenuItem<int>> base =
+                      [DropdownMenuItem(value: 0, child: Text('None'),)];
+                    base.addAll(items);
+                  return DropdownButtonFormField(
+                    value: _${rCtitle}Controller ?? 0,
+                    items: base,
+                    onChanged: (value) => {_${rCtitle}Controller = value != 0` +
+                      ` ? value : null});
+                }
+              ),\n`;
+      }
+    });
     s += `            ],
           ),
         ),
@@ -264,6 +357,14 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
                 final new${Ptitle} = ${Ptitle}(\n`;
     schema.properties.forEach((prop) => {
       s += `                  ${this.flutterStringParsing(prop)}\n`;
+    });
+    schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      if (!rel.isMany) {
+        s += `                  ${rCtitle}Id: _${rCtitle}Controller,\n`;
+      } else {
+        s += `                  ${rCtitle}Ids: _${rCtitle}sController,\n`;
+      }
     });
     s += `                );
                 if (${Ctitle} == null) {
@@ -366,15 +467,44 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
                       child: Icon(Icons.delete, color: Colors.white),
                     ),
                     onDismissed: (_) => _delete${Ptitle}(${Ctitle}),
-                    child: ListTile(\n`;
-    schema.properties.forEach((prop, i) => {
-      const display = this.flutterDisplayParse(prop, Ctitle);
-      if (i == 0) s += `                      title: Text(${display}'),\n`;
-      if (i == 1) s += `                      subtitle: Text(${display}\\n'\n`;
-      if (i > 1) s += `                        ${display}\\n'\n`;
+                    child: ListTile(\n
+                      title: Text('\${${Ctitle}.id}'),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [\n`;
+    schema.properties.forEach((prop) => {
+      const display = this.flutterDisplayParse(prop.title, prop.type, Ctitle);
+      s += `                        Text(${display}'),\n`;
     });
-    if (schema.properties.length > 1) s += `                      ),\n`;
-    s += `                      trailing: Row(
+    schema.relations.forEach((rel) => {
+      if (!rel.isMany) {
+        const display = this.flutterRelationDisplayParse(rel, Ctitle);
+        const rCtitle = this.camelCase(rel.title);
+        const rPtitle = this.pascalCase(rel.title);
+        s += `                            FutureBuilder(
+                            future: _${rCtitle}sFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState` +
+                                `.waiting) {
+                                return Center(child: ` +
+                                  `CircularProgressIndicator());
+                              }
+                              if (snapshot.hasError) {
+                                return Center(child: Text('Error: ` +
+                                  `\${snapshot.error}'));
+                              }
+                              final ${rCtitle}s = snapshot.data!;
+                              try {
+                                return(Text(${display}'));
+                              } catch(e) {
+                                return(Text('${rPtitle}: None'));
+                              }
+                            }
+                          ),\n`;
+      }
+    });
+    s += `                      ]),
+                          trailing: Row(
                         mainAxisSize: MainAxisSize
                             .min, // Makes the Row take minimum space
                         children: [
@@ -424,7 +554,7 @@ class MainApp extends StatefulWidget {
 }
 
 class _MainAppState extends State<MainApp> {
-  Widget _lastSelection = DirectorsScreen();
+  Widget _lastSelection = ${this.pascalCase(schema.classes[0].title)}sScreen();
 
   @override
   Widget build(BuildContext context) {
@@ -527,10 +657,11 @@ class _MainAppState extends State<MainApp> {
     }
   }
 
-  static flutterDisplayParse(prop: codegenProperty, name: string): string {
-    const Ptitle = this.pascalCase(prop.title);
-    const Ctitle = this.camelCase(prop.title);
-    switch (prop.type) {
+  static flutterDisplayParse(title: string, type: string, name: string)
+    : string {
+    const Ptitle = this.pascalCase(title);
+    const Ctitle = this.camelCase(title);
+    switch (type) {
       case DataType.boolean:
         return `'${Ptitle}: \${${name}.${Ctitle}! ? '✔' : '✘'}`;
       case DataType.localdate:
@@ -540,6 +671,44 @@ class _MainAppState extends State<MainApp> {
         return `'${Ptitle}: \${DateFormat('dd-MM-yyyy hh:mm:ss.SSS')` +
         `.format(${name}.${Ctitle}!)}`;
       default: return `'${Ptitle}: \${${name}.${Ctitle}}`;
+    }
+  }
+
+  static flutterDisplayParseNoTitle(title: string, type: string)
+    : string {
+    const Ctitle = this.camelCase(title);
+    switch (type) {
+      case DataType.boolean:
+        return `'\${i.${Ctitle}! ? '✔' : '✘'}`;
+      case DataType.localdate:
+        return `'\${DateFormat('dd-MM-yyyy')` +
+        `.format(i.${Ctitle}!)}`;
+      case DataType.localdatetime:
+        return `'\${DateFormat('dd-MM-yyyy hh:mm:ss.SSS')` +
+        `.format(i.${Ctitle}!)}`;
+      default: return `'\${i.${Ctitle}}`;
+    }
+  }
+
+  static flutterRelationDisplayParse(relation: codegenRelation, name: string)
+    : string {
+    const rPtitle = this.pascalCase(relation.title);
+    const Ctitle = this.camelCase(relation.firstprop);
+    const varname = this.camelCase(relation.title);
+    switch (relation.firstproptype) {
+      case DataType.boolean:
+        return `'${rPtitle}: \${${varname}s.firstWhere((i) => i.id ==` +
+        ` ${name}.${varname}Id).${Ctitle}! ? '✔' : '✘'}`;
+      case DataType.localdate:
+        return `'${rPtitle}: \${DateFormat('dd-MM-yyyy')` +
+        `.format(${varname}s.firstWhere((i) => i.id ==` +
+        ` ${name}.${varname}.Id).${Ctitle}!)}`;
+      case DataType.localdatetime:
+        return `'${rPtitle}: \${DateFormat('dd-MM-yyyy hh:mm:ss.SSS')` +
+        `.format(${varname}s.firstWhere((i) => i.id ==` +
+        ` ${name}.${varname}Id).${Ctitle}!)}`;
+      default: return `'${rPtitle}: \${${varname}s.firstWhere((i) => i.id ==` +
+        ` ${name}.${varname}Id).${Ctitle}}`;
     }
   }
 }

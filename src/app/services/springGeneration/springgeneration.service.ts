@@ -217,11 +217,12 @@ public interface ${Ptitle}Repo extends JpaRepository<${Ptitle}, Long> {
 `package com.umlonk.generated.service;
 
 import com.umlonk.generated.model.*;
-import com.umlonk.generated.dto.${Ptitle}DTO;
-import com.umlonk.generated.repo.${Ptitle}Repo;
+import com.umlonk.generated.dto.*;
+import com.umlonk.generated.repo.*;
 import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
-import java.util.List;
+import java.util.stream.Collectors;
+import java.util.*;
 import org.modelmapper.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -232,7 +233,16 @@ public class ${Ptitle}Service {
 
     @Autowired
     private ${Ptitle}Repo ${Ctitle}Repository;
-
+`;
+    schema.relations.forEach((rel) => {
+      const rPtitle = this.pascalCase(rel.title);
+      const rCtitle = this.camelCase(rel.title);
+      string += `
+    @Autowired
+    private ${rPtitle}Repo ${rCtitle}Repository;
+    `;
+    });
+    string += `
     @Autowired
     private ModelMapper modelMapper;
 
@@ -256,27 +266,24 @@ public class ${Ptitle}Service {
 
     public List<${Ptitle}DTO> getAll${Ptitle}s() {
         List<${Ptitle}> ${Ctitle}List = ${Ctitle}Repository.findAll();
-        return modelMapper.map(${Ctitle}List, new TypeToken<List<` +
-        `${Ptitle}DTO>>() {}.getType());
-    }
+        List<${Ptitle}DTO> out = modelMapper.map(${Ctitle}List, new TypeToken` +
+        `<List<${Ptitle}DTO>>() {}.getType());
+        out.forEach(o -> {
+            ${Ctitle}List.forEach(u -> {\n`;
+    schema.relations.forEach((rel) => {
+      const rPtitle = this.pascalCase(rel.title);
+      if (rel.isMany) {
+        string += `                o.set${rPtitle}Ids(u.get${rPtitle}s()` +
+        `.stream().map(${rPtitle}::getId).collect(Collectors.toList()));\n`;
+      }
+    });
+    string += `            });\n        });\n        return out;\n    }
 
     public ${Ptitle}DTO save${Ptitle}(${Ptitle}DTO ${Ctitle}DTO) {
         mapperSetup();
         ${Ptitle} ${Ctitle} = modelMapper.map(${Ctitle}DTO, ${Ptitle}.class);
-`;
-    schema.relations.forEach((rel) => {
-      if (!rel.isMany && !rel.hasMany) {
-        string +=
-`        if (${Ctitle}DTO.get${rel.title}Id() != null) {
-            ${Ctitle}.set${rel.title}(entityManager.getReference(${rel.title}` +
-`.class, ${Ctitle}DTO.get${rel.title}Id()));
-            ${Ctitle}.get${rel.title}().set${Ptitle}(${Ctitle});
-        }
-        else ${Ctitle}.set${rel.title}(null);\n`;
-      }
-    });
-    string +=
-`        ${Ctitle}Repository.save(${Ctitle});
+${this.genRelationHandling(schema)}
+        ${Ctitle}Repository.save(${Ctitle});
         return ${Ctitle}DTO;
     }
 
@@ -285,18 +292,8 @@ public class ${Ptitle}Service {
         ${Ptitle} ${Ctitle} = ${Ctitle}Repository.findById(${Ctitle}` +
         `DTO.getId()).orElseThrow();
         modelMapper.map(${Ctitle}DTO, ${Ctitle});
-`;
-    schema.relations.forEach((rel) => {
-      if (!rel.isMany && !rel.hasMany) {
-        string +=
-`        if (${Ctitle}DTO.get${rel.title}Id() != null)
-            ${Ctitle}.set${rel.title}(entityManager.getReference(${rel.title}` +
-`.class, ${Ctitle}DTO.get${rel.title}Id()));
-        else ${Ctitle}.set${rel.title}(null);\n`;
-      }
-    });
-    string +=
-`        ${Ctitle}Repository.save(${Ctitle});
+${this.genRelationHandling(schema)}
+        ${Ctitle}Repository.save(${Ctitle});
         return ${Ctitle}DTO;
     }
 
@@ -305,6 +302,87 @@ public class ${Ptitle}Service {
         return "${Ptitle} deleted";
     }
 }`;
+    return string;
+  }
+
+  static genRelationHandling(cl: codegenClass): string {
+    const Ctitle = this.camelCase(cl.title);
+    const Ptitle = this.pascalCase(cl.title);
+    let string = '';
+    cl.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      const rPtitle = this.pascalCase(rel.title);
+      if (!rel.isMany && !rel.hasMany) {
+        string +=
+`        if (${Ctitle}DTO.get${rPtitle}Id() != null) {
+            ${rPtitle} ${rCtitle} = ${Ctitle}.get${rPtitle}();
+            if (${rCtitle} != null) {
+                ${rCtitle}.set${Ptitle}(null);
+                ${rCtitle}Repository.save(${rCtitle});
+            }
+            ${Ctitle}.set${rPtitle}(entityManager.getReference(${rPtitle}` +
+                `.class, ${Ctitle}DTO.get${rPtitle}Id()));
+            ${rCtitle} = ${Ctitle}.get${rPtitle}();
+            ${rCtitle}.set${Ptitle}(${Ctitle});
+            ${rCtitle}Repository.save(${rCtitle});
+        } else {
+            ${rPtitle} ${rCtitle} = ${Ctitle}.get${rPtitle}();
+            if (${rCtitle} != null) {
+                ${rCtitle}.set${Ptitle}(null);
+                ${rCtitle}Repository.save(${rCtitle});
+            }
+            ${Ctitle}.set${rPtitle}(null);
+        }\n`;
+      }
+      if (rel.isMany && !rel.hasMany) {
+        string +=
+`        if (${Ctitle}DTO.get${rPtitle}Ids() != null) {
+                List<${rPtitle}> ${rCtitle}s = ${Ctitle}.get${rPtitle}s();
+            if (${rCtitle}s != null) {
+                ${rCtitle}s.forEach(${rCtitle} -> {
+                    ${rCtitle}.set${Ptitle}(null);
+                    ${rCtitle}Repository.save(${rCtitle});
+                });
+            }
+            ${Ctitle}DTO.get${rPtitle}Ids().forEach(${rCtitle}Id -> {
+                final ${rPtitle} ${rCtitle} = entityManager.getReference` +
+                  `(${rPtitle}.class, ${rCtitle}Id);
+                ${rCtitle}.set${Ptitle}(${Ctitle});
+                ${rCtitle}Repository.save(${rCtitle});
+            });
+        } else {
+            List<${rPtitle}> ${rCtitle}s = ${Ctitle}.get${rPtitle}s();
+            if (${rCtitle}s != null) {
+                ${rCtitle}s.forEach(${rCtitle} -> {
+                    ${rCtitle}.set${Ptitle}(null);
+                    ${rCtitle}Repository.save(${rCtitle});
+                });
+            }
+        }\n`;
+      }
+      if (!rel.isMany && rel.hasMany) {
+        string +=
+`        if (${Ctitle}DTO.get${rPtitle}Id() != null) {
+            ${Ctitle}.set${rPtitle}(entityManager.getReference(${rPtitle}` +
+              `.class, ${Ctitle}DTO.get${rPtitle}Id()));
+        } else {
+            ${Ctitle}.set${rPtitle}(null);
+        }\n`;
+      }
+      if (rel.isMany && rel.hasMany) {
+        string +=
+`        if (${Ctitle}DTO.get${rPtitle}Ids() != null) {
+            final List<${rPtitle}> ${rCtitle}s = new ArrayList<${rPtitle}>();
+            ${Ctitle}DTO.get${rPtitle}Ids().forEach(${rCtitle}Id -> {
+                ${rCtitle}s.add(entityManager.getReference(${rPtitle}` +
+                  `.class, ${rCtitle}Id));
+            });
+            ${Ctitle}.set${rPtitle}s(${rCtitle}s);
+        } else {
+            ${Ctitle}.set${rPtitle}s(new ArrayList<${rPtitle}>());
+        }\n`;
+      }
+    });
     return string;
   }
 }

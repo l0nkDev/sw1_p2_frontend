@@ -83,29 +83,39 @@ export class NavbarComponent implements OnInit {
     this.processing = true;
     const diagram =JSON.stringify(
         CodeGenerationService.objectFromDiagram(this.canvas.diagram));
-    const response = await this.ai.models.generateContent({
-      model: 'gemini-2.5-pro',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: z.toJSONSchema(this.diagramSchema),
-        systemInstruction: 'You are an expert database modeler. ' +
-        'Your only task is to generate a UML database model in JSON format. ' +
-        'You must strictly adhere to the \'responseSchema\' provided. ' +
-        'CRITICAL RULE: For fields with "enum" constraints '+
-        '(Type, Multiplicity), you are only allowed to use the EXACT ' +
-        'string values defined in the list. ' +
-        'Do not generate explanatory text, only the complete JSON object.' +
-        'You must use the following JSON diagram as a base and modify ' +
-        'it in any way you\'re required to including creating new classes ' +
-        'connections, properties in classes, deleting them or editing certain' +
-        'aspects of them. Preserve the class Id in the base JSON. Dont add ' +
-        `properties unless youre asked to. The diagram is: ${diagram}`,
-      },
-    });
-    console.log(response.text);
-    this.parseAIResponse(response.text!);
-    this.processing = false;
+    try {
+      const response = await this.ai.models.generateContent({
+        model: 'gemini-2.5-pro',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: z.toJSONSchema(this.diagramSchema),
+          systemInstruction: 'You are an expert database modeler. ' +
+          'Your only task is to generate a UML database model in JSON format. '+
+          'You must strictly adhere to the \'responseSchema\' provided. ' +
+          'CRITICAL RULE: For fields with "enum" constraints '+
+          '(Type, Multiplicity), you are only allowed to use the EXACT ' +
+          'string values defined in the list. ' +
+          'Do not generate explanatory text, only the complete JSON object.' +
+          'You must use the following JSON diagram as a base and modify ' +
+          'it in any way you\'re required to including creating new classes ' +
+          'connections, properties in classes, deleting or editing certain'+
+          'aspects of them. Preserve the class Id in the base JSON. Dont add ' +
+          `properties unless youre asked to. The diagram is: ${diagram}`,
+        },
+      });
+      console.log(response.text);
+      this.parseAIResponse(response.text!);
+      this.processing = false;
+      prompt = '';
+    } catch (error: any) {
+      this.processing = false;
+      if (error.status === 503) {
+        alert('La IA está sobrecargada. Inténtelo de nuevo.');
+      } else {
+        alert('Ocurrió un error. Inténtelo de nuevo.');
+      }
+    }
   }
 
   parseAIResponse(response: string) {
@@ -253,16 +263,16 @@ export class NavbarComponent implements OnInit {
             config: {
               responseMimeType: 'application/json',
               responseSchema: z.toJSONSchema(this.diagramSchema),
-              systemInstruction: `You are an expert database modeler. 
-              Your only task is to generate a UML database model in JSON 
-              format. You must strictly adhere to the 'responseSchema' 
-              provided. CRITICAL RULE: For fields with "enum" constraints 
-              (Type, Multiplicity), you are only allowed to use the EXACT 
-              string values defined in the list. Do not generate explanatory 
-              text, only the complete JSON object. You must extract from the 
+              systemInstruction: `You are an expert database modeler.
+              Your only task is to generate a UML database model in JSON
+              format. You must strictly adhere to the 'responseSchema'
+              provided. CRITICAL RULE: For fields with "enum" constraints
+              (Type, Multiplicity), you are only allowed to use the EXACT
+              string values defined in the list. Do not generate explanatory
+              text, only the complete JSON object. You must extract from the
               attached picture of a drawn UML database class diagram the classes
-              with their names, their properties and property types, relative 
-              positions and the connections between them taking into account 
+              with their names, their properties and property types, relative
+              positions and the connections between them taking into account
               multiplicity and connection type. Once youve analyzed the picture,
               return the diagram in the specified JSON Schema.`,
             },

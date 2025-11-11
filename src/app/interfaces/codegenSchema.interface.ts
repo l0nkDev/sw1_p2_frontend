@@ -15,6 +15,8 @@ export interface codegenProperty {
 
 export interface codegenRelation {
     title: string,
+    firstprop: string,
+    firstproptype: string,
     isMany: boolean,
     hasMany: boolean,
     owned: boolean

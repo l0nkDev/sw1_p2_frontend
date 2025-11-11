@@ -115,14 +115,19 @@ export class CodeGenerationService {
                     hasMany: isSource ? isSrcMany : isTarMany,
                     owned: isSource ?
                     (isSrcMany && !isTarMany) ||
-                    tar.Multiplicity == Multiplicity.ZeroToMany ||
+                    src.Multiplicity == Multiplicity.ZeroToMany ||
                     isSrcMany == isTarMany:
                     (isTarMany && !isSrcMany) ||
-                    src.Multiplicity == Multiplicity.ZeroToMany,
+                    tar.Multiplicity == Multiplicity.ZeroToMany,
+                    firstprop: isSource ? tar.Class.Properties[0].Name :
+                      src.Class.Properties[0].Name,
+                    firstproptype: isSource ? tar.Class.Properties[0].Type :
+                      src.Class.Properties[0].Type,
                   };
                 }),
           };
         })};
+    console.log(schema);
     return schema;
   }
 }
