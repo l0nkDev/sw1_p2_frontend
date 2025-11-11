@@ -375,15 +375,20 @@ ${this.genRelationHandling(schema)}
       if (rel.isMany && rel.hasMany) {
         string +=
 `        if (${Ctitle}DTO.get${rPtitle}Ids() != null) {
+            Set<${rPtitle}> ${rCtitle}s = new HashSet(${Ctitle}.get${rPtitle}` +
+            `s());
             ${Ctitle}.get${rPtitle}s().forEach(${rCtitle} -> {
-                if (!${Ctitle}DTO.get${rPtitle}Ids().contains(${rCtitle}.getId())) {
+                if (!${Ctitle}DTO.get${rPtitle}Ids().contains(${rCtitle}` +
+                `.getId())) {
                     ${rCtitle}.get${Ptitle}s().remove(${Ctitle});
-                    ${Ctitle}.get${rPtitle}s().remove(${rCtitle});
+                    ${rCtitle}s.remove(${rCtitle});
                     ${rCtitle}Repository.save(${rCtitle});
                 }
+                ${Ctitle}.set${rPtitle}s(${rCtitle}s);
             });
             ${Ctitle}DTO.get${rPtitle}Ids().forEach(${rCtitle}Id -> {
-                ${rPtitle} ${rCtitle} = entityManager.getReference(${rPtitle}.class, ${rCtitle}Id);
+                ${rPtitle} ${rCtitle} = entityManager.getReference(${rPtitle}` +
+                `.class, ${rCtitle}Id);
                 ${rCtitle}.get${Ptitle}s().add(${Ctitle});
                 ${Ctitle}.get${rPtitle}s().add(${rCtitle});
                 ${rCtitle}Repository.save(${rCtitle});

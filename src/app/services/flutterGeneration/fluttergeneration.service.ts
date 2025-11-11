@@ -615,6 +615,8 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
                             `${rCtitle}Ids??[]).isEmpty ? 'Empty' : ''}'),
                             if ((${Ctitle}.${rCtitle}Ids??[]).isNotEmpty) ` +
                             `IconButton(onPressed: (){
+                              _${rCtitle}sController = ${Ctitle}.${rCtitle}` +
+                              `Ids??[];
                               showDialog(
                                 context: context, builder: (context) => ` +
                                 `AlertDialog(
