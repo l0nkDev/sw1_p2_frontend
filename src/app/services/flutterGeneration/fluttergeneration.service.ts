@@ -83,8 +83,9 @@ export class FlutterGenerationService {
     });
     schema.relations.forEach((rel) => {
       const title = this.camelCase(rel.title);
-      if (rel.isMany) string += `      ${title}Ids: json['${title}Ids'],\n`;
-      else string += `      ${title}Id: json['${title}Id'],\n`;
+      if (rel.isMany) {
+        string += `      ${title}Ids: List<int>.from(json['${title}Ids']),\n`;
+      } else string += `      ${title}Id: json['${title}Id'],\n`;
     });
     string +=
     `    );\n  }\n\n  Map<String, dynamic> toJson() {\n    return {\n`;
@@ -228,8 +229,8 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
     });
     schema.relations.forEach((rel) => {
       const rCtitle = this.camelCase(rel.title);
-      if (!rel.isMany) s += `  int? _${rCtitle}Controller;`;
-      else s += `  List<int>? _${rCtitle}sController;`;
+      if (!rel.isMany) s += `  int? _${rCtitle}Controller;\n`;
+      else s += `  List<int>? _${rCtitle}sController;\n`;
     });
     s += `\n  @override
   void initState() {
@@ -310,10 +311,10 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
     schema.relations.forEach((rel) => {
       const rCtitle = this.camelCase(rel.title);
       const rPtitle = this.pascalCase(rel.title);
+      const display =this.flutterDisplayParseNoTitle(
+          rel.firstprop, rel.firstproptype,
+      );
       if (!rel.isMany) {
-        const display =this.flutterDisplayParseNoTitle(
-            rel.firstprop, rel.firstproptype,
-        );
         s += `              FutureBuilder(
                 future: _${rCtitle}sFuture,
                 builder: (context, snapshot) {
@@ -335,11 +336,113 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
                       [DropdownMenuItem(value: 0, child: Text('None'),)];
                     base.addAll(items);
                   return DropdownButtonFormField(
+                    decoration: InputDecoration(
+                      labelText: '${rPtitle}',
+                    ),
                     value: _${rCtitle}Controller ?? 0,
                     items: base,
                     onChanged: (value) => {_${rCtitle}Controller = value != 0` +
                       ` ? value : null});
                 }
+              ),\n`;
+      } else {
+        s += `              FutureBuilder(
+                future: _${rCtitle}sFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: \${snapshot.error}'));
+                  }
+                  final ${rCtitle}s = snapshot.data!;
+                  return InkWell(
+                    child: IgnorePointer(
+                      child: DropdownButtonFormField(
+                        decoration: InputDecoration(
+                          labelText: '${rPtitle}s',
+                        ),
+                        value: 0,
+                        items: [DropdownMenuItem(child: Text('Expand'),` +
+                        ` value: 0,)],
+                        onChanged: (v) {},
+                      ),
+                    ),
+                    onTap: () {
+                      ValueNotifier<int> notifier = ValueNotifier` +
+                      `(_${rCtitle}sController!.length);
+                      showDialog(
+                        context: context, builder: (context) => AlertDialog(
+                          title: Text('${rPtitle}s'),
+                          content: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: DropdownButtonFormField(
+                                      items: ${rCtitle}s.map<DropdownMenuItem` +
+                                      `<int>>((i) {
+                                        return DropdownMenuItem<int>(
+                                          value: i.id,
+                                          child: Text(${display}'),
+                                          );
+                                      }).toList(),
+                                      onChanged: (v) {
+                                        if (!_${rCtitle}sController!` +
+                                        `.contains(v)) {
+                                          _${rCtitle}sController!.add(v!);
+                                          notifier.value = _${rCtitle}s` +
+                                          `Controller!.length;
+                                        }
+                                      }
+                                    ),
+                                  ),
+                                  IconButton(onPressed: (){}, icon: ` +
+                                  `Icon(Icons.add),)
+                                ],
+                              ),
+                              ValueListenableBuilder(
+                                valueListenable: notifier,
+                                builder: (context, a, b) {
+                                  return Column(
+                                    children: List.generate(${rCtitle}s` +
+                                    `.length, (index) {
+                                      ${rPtitle} i = ${rCtitle}s[index];
+                                      if (_${rCtitle}sController!` +
+                                      `.contains(i.id)) {
+                                        return ListTile(
+                                          title: Row(
+                                            children: [
+                                              Text(${display}'),
+                                              Spacer(),
+                                              IconButton(
+                                                onPressed: () {
+                                                  _${rCtitle}sController!` +
+                                                  `.remove(i.id);
+                                                  notifier.value = ` +
+                                                  `_${rCtitle}sController!` +
+                                                  `.length;
+                                                },
+                                                icon: Icon(Icons.delete)
+                                              ),
+                                            ],
+                                          ),
+                                          subtitle: Text('\${i.id}'),
+                                        );
+                                      };
+                                      return SizedBox(height: 0);
+                                    }),
+                                  );
+                                }
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
               ),\n`;
       }
     });
@@ -477,10 +580,10 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
       s += `                        Text(${display}'),\n`;
     });
     schema.relations.forEach((rel) => {
+      const rCtitle = this.camelCase(rel.title);
+      const rPtitle = this.pascalCase(rel.title);
       if (!rel.isMany) {
         const display = this.flutterRelationDisplayParse(rel, Ctitle);
-        const rCtitle = this.camelCase(rel.title);
-        const rPtitle = this.pascalCase(rel.title);
         s += `                            FutureBuilder(
                             future: _${rCtitle}sFuture,
                             builder: (context, snapshot) {
@@ -501,6 +604,68 @@ class _${Ptitle}sScreenState extends State<${Ptitle}sScreen> {
                               }
                             }
                           ),\n`;
+      } else {
+        const display = this.flutterDisplayParseNoTitle(
+            rel.firstprop,
+            rel.firstproptype,
+        );
+        s += `                        Row(
+                          children: [
+                            Text('${rPtitle}s: \${(${Ctitle}.` +
+                            `${rCtitle}Ids??[]).isEmpty ? 'Empty' : ''}'),
+                            if ((${Ctitle}.${rCtitle}Ids??[]).isNotEmpty) ` +
+                            `IconButton(onPressed: (){
+                              showDialog(
+                                context: context, builder: (context) => ` +
+                                `AlertDialog(
+                                  title: Text('${rPtitle}s'),
+                                  content: FutureBuilder(
+                                    future: _${rCtitle}sFuture,
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState == ` +
+                                      `ConnectionState.waiting) {
+                                        return Center(child: ` +
+                                        `CircularProgressIndicator());
+                                      }
+
+                                      if (snapshot.hasError) {
+                                        return Center(child: Text('Error: ` +
+                                        `\${snapshot.error}'));
+                                      }
+
+                                      final ${rCtitle}s = snapshot.data!;
+                                      return Column(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Column(
+                                            children: List` +
+                                        `.generate(${rCtitle}s.length, (index) {
+                                              ${rPtitle} i = ${rCtitle}s[index];
+                                              if (_${rCtitle}sController!` +
+                                              `.contains(i.id)) {
+                                                return ListTile(
+                                                  title: Row(
+                                                    children: [
+                                                      Text(${display}'),
+                                                      Spacer(),
+                                                    ],
+                                                  ),
+                                                  subtitle: Text('\${i.id}'),
+                                                );
+                                              };
+                                              return SizedBox(height: 0);
+                                            }),
+                                          ),
+                                        ],
+                                      );
+                                    }
+                                  ),
+                                ),
+                              );
+                            }, icon: Icon(Icons.list)),
+                            Spacer(),
+                          ],
+                        ),\n`;
       }
     });
     s += `                      ]),
