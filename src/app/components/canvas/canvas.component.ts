@@ -39,6 +39,7 @@ import {KeyValuePipe, NgFor} from '@angular/common';
 import {
   ClassObject,
   ConnectorObject,
+  ConnectorType,
 } from '../../interfaces/serializedDiagram.interface';
 
 @Component({
@@ -161,6 +162,37 @@ export class CanvasComponent implements OnInit {
     bottom: 12,
   };
 
+  public testConnectors() {
+    this.printConnectors();
+    const newConnectorObj: ConnectorModel = {
+      id: (
+        ConnectorType.Association + Math.random().toString(36).substring(2, 15)
+      ).replace(' ', ''),
+      sourceID: 'class_MateriaAbcdefg',
+      targetID: 'class_EstudianteHijkl',
+      type: 'Straight',
+      shape: {
+        type: 'UmlClassifier',
+        relationship: ConnectorType.Association,
+        multiplicity: {
+          type: 'ManyToMany',
+          source: {
+            optional: true,
+            lowerBounds: '0',
+            upperBounds: '*',
+          },
+          target: {
+            optional: true,
+            lowerBounds: '0',
+            upperBounds: '*',
+          },
+        },
+      },
+    };
+    console.log(newConnectorObj);
+    this.diagram.add(newConnectorObj);
+  }
+
   public createProperty(name: string, type: string): object {
     return {name: name, type: type};
   }
@@ -208,11 +240,11 @@ export class CanvasComponent implements OnInit {
     return window.location.pathname.split('/').pop();
   }
 
-  public PrintNodes(): void {
+  public printNodes(): void {
     console.log(this.diagram.nodes);
   }
 
-  public PrintConnectors(): void {
+  public printConnectors(): void {
     console.log(this.diagram.connectors);
   }
   public onClick(args: any): void {

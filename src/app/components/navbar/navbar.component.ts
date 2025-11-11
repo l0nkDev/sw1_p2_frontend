@@ -170,7 +170,7 @@ export class NavbarComponent implements OnInit {
     nodelist.forEach((id) => {
       this.canvas!.diagram.remove(this.canvas!.diagram.getNodeObject(id));
     });
-    this.canvas!.diagram.connectors = [];
+    this.canvas!.diagram.connectors.length = 0;
     newdiagram.connectors.forEach((conn: any) => {
       const newconn: ConnectorObject = {
         Source: {
