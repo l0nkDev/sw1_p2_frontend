@@ -63,7 +63,7 @@ export class SpringGenerationService {
 
 import com.umlonk.generated.dto.${Ptitle}DTO;
 import com.umlonk.generated.service.${Ptitle}Service;
-import java.util.List;
+import java.util.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
@@ -76,7 +76,7 @@ public class ${Ptitle}Controller {
     private ${Ptitle}Service ${Ctitle}Service;
 
     @GetMapping("")
-    public List<${Ptitle}DTO> get${Ptitle}() {
+    public Set<${Ptitle}DTO> get${Ptitle}() {
         return ${Ctitle}Service.getAll${Ptitle}s();
     }
 
@@ -107,7 +107,7 @@ public class ${Ptitle}Controller {
 `package com.umlonk.generated.dto;
 
 import jakarta.persistence.Entity;
-import java.util.List;
+import java.util.*;
 import lombok.*;
 import java.time.*;
 
@@ -123,7 +123,7 @@ public class ${Ptitle}DTO {
     });
     schema.relations.forEach((rel) => {
       string +=
-        `    private ${rel.isMany ? 'List<Long>' : 'Long'} ` +
+        `    private ${rel.isMany ? 'Set<Long>' : 'Long'} ` +
         `${this.camelCase(rel.title)}${rel.isMany ? 'Ids' : 'Id'};\n`;
     });
     string += `}`;
@@ -133,7 +133,7 @@ public class ${Ptitle}DTO {
   static classToEntity(schema: codegenClass): string {
     let string =
 `import jakarta.persistence.*;
-import java.util.List;
+import java.util.*;
 import lombok.*;
 import java.time.*;
 
@@ -141,9 +141,11 @@ import java.time.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Data
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class ${this.pascalCase(schema.title)} {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 `;
     schema.properties.forEach((prop) => {
@@ -171,7 +173,7 @@ public class ${this.pascalCase(schema.title)} {
       if (rel.isMany && !rel.hasMany) {
         string += `    @OneToMany(mappedBy="` +
         `${this.camelCase(schema.title)}")\n`;
-        string += `    private List<${this.pascalCase(rel.title)}> ` +
+        string += `    private Set<${this.pascalCase(rel.title)}> ` +
         `${this.camelCase(rel.title)}s;\n`;
       }
       if (rel.isMany && rel.hasMany) {
@@ -186,7 +188,7 @@ public class ${this.pascalCase(schema.title)} {
           string += `        inverseJoinColumns = @JoinColumn(name="` +
           `${this.snakeCase(rel.title)}_id"))\n`;
         }
-        string += `    private List<${this.pascalCase(rel.title)}> ` +
+        string += `    private Set<${this.pascalCase(rel.title)}> ` +
         `${this.camelCase(rel.title)}s;\n`;
       }
     });
@@ -264,17 +266,18 @@ public class ${Ptitle}Service {
       } catch(ConfigurationException a) {}
     }
 
-    public List<${Ptitle}DTO> getAll${Ptitle}s() {
+    public Set<${Ptitle}DTO> getAll${Ptitle}s() {
         List<${Ptitle}> ${Ctitle}List = ${Ctitle}Repository.findAll();
-        List<${Ptitle}DTO> out = modelMapper.map(${Ctitle}List, new TypeToken` +
-        `<List<${Ptitle}DTO>>() {}.getType());
+        Set<${Ptitle}DTO> out = modelMapper.map(${Ctitle}List, new TypeToken` +
+        `<Set<${Ptitle}DTO>>() {}.getType());
         out.forEach(o -> {
             ${Ctitle}List.forEach(u -> {\n`;
     schema.relations.forEach((rel) => {
       const rPtitle = this.pascalCase(rel.title);
       if (rel.isMany) {
-        string += `                o.set${rPtitle}Ids(u.get${rPtitle}s()` +
-        `.stream().map(${rPtitle}::getId).collect(Collectors.toList()));\n`;
+        string += `                if (o.getId() == u.getId()) o.set` +
+        `${rPtitle}Ids(u.get${rPtitle}s().stream().map(${rPtitle}::getId)` +
+        `.collect(Collectors.toSet()));\n`;
       }
     });
     string += `            });\n        });\n        return out;\n    }
@@ -337,7 +340,7 @@ ${this.genRelationHandling(schema)}
       if (rel.isMany && !rel.hasMany) {
         string +=
 `        if (${Ctitle}DTO.get${rPtitle}Ids() != null) {
-                List<${rPtitle}> ${rCtitle}s = ${Ctitle}.get${rPtitle}s();
+                Set<${rPtitle}> ${rCtitle}s = ${Ctitle}.get${rPtitle}s();
             if (${rCtitle}s != null) {
                 ${rCtitle}s.forEach(${rCtitle} -> {
                     ${rCtitle}.set${Ptitle}(null);
@@ -351,7 +354,7 @@ ${this.genRelationHandling(schema)}
                 ${rCtitle}Repository.save(${rCtitle});
             });
         } else {
-            List<${rPtitle}> ${rCtitle}s = ${Ctitle}.get${rPtitle}s();
+            Set<${rPtitle}> ${rCtitle}s = ${Ctitle}.get${rPtitle}s();
             if (${rCtitle}s != null) {
                 ${rCtitle}s.forEach(${rCtitle} -> {
                     ${rCtitle}.set${Ptitle}(null);
@@ -372,14 +375,25 @@ ${this.genRelationHandling(schema)}
       if (rel.isMany && rel.hasMany) {
         string +=
 `        if (${Ctitle}DTO.get${rPtitle}Ids() != null) {
-            final List<${rPtitle}> ${rCtitle}s = new ArrayList<${rPtitle}>();
-            ${Ctitle}DTO.get${rPtitle}Ids().forEach(${rCtitle}Id -> {
-                ${rCtitle}s.add(entityManager.getReference(${rPtitle}` +
-                  `.class, ${rCtitle}Id));
+            ${Ctitle}.get${rPtitle}s().forEach(${rCtitle} -> {
+                if (!${Ctitle}DTO.get${rPtitle}Ids().contains(${rCtitle}.getId())) {
+                    ${rCtitle}.get${Ptitle}s().remove(${Ctitle});
+                    ${Ctitle}.get${rPtitle}s().remove(${rCtitle});
+                    ${rCtitle}Repository.save(${rCtitle});
+                }
             });
-            ${Ctitle}.set${rPtitle}s(${rCtitle}s);
+            ${Ctitle}DTO.get${rPtitle}Ids().forEach(${rCtitle}Id -> {
+                ${rPtitle} ${rCtitle} = entityManager.getReference(${rPtitle}.class, ${rCtitle}Id);
+                ${rCtitle}.get${Ptitle}s().add(${Ctitle});
+                ${Ctitle}.get${rPtitle}s().add(${rCtitle});
+                ${rCtitle}Repository.save(${rCtitle});
+            });
         } else {
-            ${Ctitle}.set${rPtitle}s(new ArrayList<${rPtitle}>());
+            ${Ctitle}.get${rPtitle}s().forEach(${rCtitle} -> {
+                ${rCtitle}.get${Ptitle}s().remove(${Ctitle});
+                ${Ctitle}.get${rPtitle}s().remove(${rCtitle});
+                ${rCtitle}Repository.save(${rCtitle});
+            });
         }\n`;
       }
     });
