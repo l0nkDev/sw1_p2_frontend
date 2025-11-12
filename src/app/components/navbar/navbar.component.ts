@@ -254,37 +254,55 @@ export class NavbarComponent implements OnInit {
           this.canvas?.diagram.loadDiagram(content);
         }
         if (file.type === 'image/jpeg') {
+          this.processing = true;
           const base64image = await this.encodeFileToBase64(file);
           console.log(base64image);
-          const response = await this.ai.models.generateContent({
-            model: 'gemini-2.5-pro',
-            contents: [
-              {
-                inlineData: {
-                  data: (base64image as string).split(',')[1],
-                  mimeType: 'image/jpeg',
+          try {
+            const response = await this.ai.models.generateContent({
+              model: 'gemini-2.5-pro',
+              contents: [
+                {
+                  inlineData: {
+                    data: (base64image as string).split(',')[1],
+                    mimeType: 'image/jpeg',
+                  },
                 },
+              ],
+              config: {
+                responseMimeType: 'application/json',
+                responseSchema: z.toJSONSchema(this.diagramSchema),
+                systemInstruction: `You are an expert database modeler.
+                Your only task is to generate a UML database model in JSON
+                format. You must strictly adhere to the 'responseSchema'
+                provided. CRITICAL RULE: For fields with "enum" constraints
+                (Type, Multiplicity), you are only allowed to use the EXACT
+                string values defined in the list. Do not generate explanatory
+                text, only the complete JSON object. You must extract from the
+                attached image of a drawn UML database class diagram the classes
+                with their names, their properties and property types, relative
+                positions and the connections between them taking into account
+                multiplicity and connection type. Once youve analyzed the
+                picture, return the diagram in the specified JSON Schema. When
+                setting the offset coordinates of the classes, take into account
+                that the origin point (0,0) is on the top left corner of the
+                screen. A higher OffsetX moves the items right, a higher OffsetY
+                moves the items down. The font size of the Class titles is
+                approximately 12 units on the coordinate system. Take that font
+                size into account when approximating the positions of the
+                classes.`,
               },
-            ],
-            config: {
-              responseMimeType: 'application/json',
-              responseSchema: z.toJSONSchema(this.diagramSchema),
-              systemInstruction: `You are an expert database modeler.
-              Your only task is to generate a UML database model in JSON
-              format. You must strictly adhere to the 'responseSchema'
-              provided. CRITICAL RULE: For fields with "enum" constraints
-              (Type, Multiplicity), you are only allowed to use the EXACT
-              string values defined in the list. Do not generate explanatory
-              text, only the complete JSON object. You must extract from the
-              attached picture of a drawn UML database class diagram the classes
-              with their names, their properties and property types, relative
-              positions and the connections between them taking into account
-              multiplicity and connection type. Once youve analyzed the picture,
-              return the diagram in the specified JSON Schema.`,
-            },
-          });
-          console.log(response.text!);
-          this.parseAIResponse(response.text!);
+            });
+            console.log(response.text!);
+            this.parseAIResponse(response.text!);
+            this.processing = false;
+          } catch (e: any) {
+            this.processing = false;
+            if (e.status === 503) {
+              alert('La IA está sobrecargada. Inténtelo de nuevo.');
+            } else {
+              alert('Ocurrió un error. Inténtelo de nuevo.');
+            }
+          }
         }
       }
     } catch (err) {

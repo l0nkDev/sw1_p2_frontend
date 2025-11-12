@@ -82,6 +82,7 @@ export class CodeGenerationService {
 
   static genSchema(diagram: Diagram): codegenSchema {
     const json = this.objectFromDiagram(diagram);
+    console.log(json);
     const schema: codegenSchema = {classes: json.Classes.map(
         (cl): codegenClass => {
           return {
