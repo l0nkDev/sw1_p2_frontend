@@ -10,4 +10,5 @@ import {CanvasComponent} from './components/canvas/canvas.component';
 export class AppComponent {
   title = 'sw1_p1_frontend';
   @ViewChild('canvas') public canvas!: CanvasComponent;
+  @ViewChild('navbar') public navbar!: NavbarComponent;
 }

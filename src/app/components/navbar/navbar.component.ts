@@ -20,6 +20,8 @@ import {FlutterGenerationService}
   from '../../services/flutterGeneration/fluttergeneration.service';
 import {OpenApiGenerationService}
   from '../../services/openApiGeneration/openapigeneration.service';
+import {BrowserAbstractionService}
+  from '../../services/browserAbsctraction/browserabstraction.service';
 
 @Component({
   selector: 'app-navbar',
@@ -29,6 +31,7 @@ import {OpenApiGenerationService}
 
 export class NavbarComponent implements OnInit {
   public voiceRecognitionService = inject(VoiceRecognitionService);
+  public window: any = new BrowserAbstractionService().getWindow();
   @Input() canvas: CanvasComponent | null = null;
   readonly http = inject(HttpClient);
   processing = false;
@@ -105,7 +108,9 @@ export class NavbarComponent implements OnInit {
           'aspects of them. Preserve the class Id in the base JSON. Dont add ' +
           `properties unless youre asked to. Make sure the relations stay as is
           unless you're told to modify or delete them. Make sure to preserve the
-          class Ids when working with those relations.
+          class Ids when working with those relations. If you're asked to create
+          a class without any further instructions, make sure to add at least
+          one property with a valid type and name, aside from Ids.
           The diagram is: ${diagram}`,
         },
       });
@@ -118,6 +123,7 @@ export class NavbarComponent implements OnInit {
       if (error.status === 503) {
         alert('La IA está sobrecargada. Inténtelo de nuevo.');
       } else {
+        console.log(error);
         alert('Ocurrió un error. Inténtelo de nuevo.');
       }
     }
@@ -232,12 +238,12 @@ export class NavbarComponent implements OnInit {
   }
 
   async loadJson(): Promise<void> {
-    if (!('showOpenFilePicker' in window)) {
+    if (!('showOpenFilePicker' in this.window)) {
       alert('Your browser does not support the File System Access API.');
       return;
     }
     try {
-      const fileHandles = await window.showOpenFilePicker({
+      const fileHandles = await this.window.showOpenFilePicker({
         types: [
           {
             description: 'Picture',

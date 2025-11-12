@@ -1,3 +1,5 @@
+import {BrowserAbstractionService}
+  from './../browserAbsctraction/browserabstraction.service';
 import {Injectable} from '@angular/core';
 
 @Injectable({
@@ -5,7 +7,8 @@ import {Injectable} from '@angular/core';
 })
 
 export class VoiceRecognitionService {
-  recognition = window.SpeechRecognition ? new SpeechRecognition() : null;
+  private window: any = new BrowserAbstractionService().getWindow();
+  recognition = this.window.SpeechRecognition ? new SpeechRecognition() : null;
   canListen = false;
   isListening = false;
   isStoppedSpeechRecog = false;
