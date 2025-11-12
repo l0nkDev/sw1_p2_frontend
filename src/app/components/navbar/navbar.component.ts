@@ -103,7 +103,10 @@ export class NavbarComponent implements OnInit {
           'it in any way you\'re required to including creating new classes ' +
           'connections, properties in classes, deleting or editing certain'+
           'aspects of them. Preserve the class Id in the base JSON. Dont add ' +
-          `properties unless youre asked to. The diagram is: ${diagram}`,
+          `properties unless youre asked to. Make sure the relations stay as is
+          unless you're told to modify or delete them. Make sure to preserve the
+          class Ids when working with those relations.
+          The diagram is: ${diagram}`,
         },
       });
       console.log(response.text);
@@ -170,7 +173,10 @@ export class NavbarComponent implements OnInit {
     nodelist.forEach((id) => {
       this.canvas!.diagram.remove(this.canvas!.diagram.getNodeObject(id));
     });
-    this.canvas!.diagram.connectors.length = 0;
+    const tmpArray = [...this.canvas!.diagram.connectors];
+    tmpArray.forEach((con) => {
+      this.canvas!.diagram.remove(con);
+    });
     newdiagram.connectors.forEach((conn: any) => {
       const newconn: ConnectorObject = {
         Source: {
